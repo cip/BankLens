@@ -1,0 +1,4 @@
+interface:
+  display_name: "BankLens Workflow"
+  short_description: "BankLens: Issues, Branches und Pull Requests"
+  default_prompt: "Use $banklens-workflow to prepare this BankLens change as an issue-linked pull request."

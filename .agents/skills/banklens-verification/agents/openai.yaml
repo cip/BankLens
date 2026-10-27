@@ -1,0 +1,4 @@
+interface:
+  display_name: "BankLens Verification"
+  short_description: "BankLens: synthetische Tests und PDF-Prüfungen"
+  default_prompt: "Use $banklens-verification to select and run relevant synthetic checks for this BankLens change."
