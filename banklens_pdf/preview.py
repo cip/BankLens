@@ -624,8 +624,8 @@ def make_server(review: Review, port=0, token=None,restored_reviews=None):
                         if self.path.endswith("/search"):
                             return self.json_response(200,service.search(payload.get("query","")))
                         if self.path.endswith("/preview"):
-                            return self.respond(200,service.preview(payload.get("selected_ids"),payload.get("document_id"),payload.get("page"),payload.get("source_reference","filename")),"image/png")
-                        return self.json_response(200,service.start_export(payload.get("selected_ids"),payload.get("format","combined"),payload.get("source_reference","filename")))
+                            return self.respond(200,service.preview(payload.get("selected_ids"),payload.get("document_id"),payload.get("page"),payload.get("source_reference","filename"),payload.get("redaction_fields")),"image/png")
+                        return self.json_response(200,service.start_export(payload.get("selected_ids"),payload.get("format","combined"),payload.get("source_reference","filename"),payload.get("redaction_fields")))
                     except ProofError as error:
                         return self.json_response(400,{"error":str(error)})
                 if self.path == prefix+"api/workspace":

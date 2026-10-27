@@ -88,12 +88,21 @@ mit einer eingebetteten Schrift wiedergegeben. Die geschwaerzte Vorschau zeigt
 dieselbe Fusszeile. Bereits erstellte PDFs bleiben unveraendert; fuer die neue
 Darstellung erneut exportieren.
 
-Im POC bleibt der gesamte Kontokopf mit allen Kontoinhabern, Kontodaten und
-Auszugsangaben sichtbar. Die Auswahl einzelner Kontoinhaber folgt spaeter.
-Andere Buchungen, Summen und Salden unterhalb der Buchungstabelle werden
-geschwaerzt. Die Vorschau und die PDFs entstehen aus einer anfangs schwarzen
-Bildflaeche, auf die nur Kopf und ausgewaehlte Buchungsbereiche kopiert werden.
-Ist die Tabellengrenze nicht bekannt, bricht der Export ab.
+Erkannte Kontokopffelder lassen sich fuer Vorschau und Export getrennt
+auswaehlen: Kontoinhaber 1 und 2, eigene Adresse, Kontonummer, IBAN,
+Kontowaehrung, Auszugsdatum und -zeitraum sowie Anfangs- und Endsaldo.
+Kontoinhaber, Adresse, Kontonummer, IBAN und Salden sind standardmaessig
+ausgewaehlt. Ein Feld ohne passende Regel im Bankprofil ist deaktiviert. Auf
+Seiten, fuer deren Seitenart keine passende Regel greift, bleibt es sichtbar;
+die Feldliste zeigt an, ob eine Regel fuer die erste Seite, Folgeseiten oder
+beide vorhanden ist. Beispiele fuer fehlende Seitenarten muessen in der
+Feldwerkstatt zugeordnet und gespeichert werden. Die Auswahl wird als feste
+Liste validiert und fuer Vorschau und Export gleich angewendet. Andere
+Buchungen, Summen und Salden
+unterhalb der Buchungstabelle werden geschwaerzt. Die Vorschau und die PDFs
+entstehen aus einer anfangs schwarzen Bildflaeche, auf die nur der Kontokopf,
+abzueglich der ausgewaehlten Feldmasken, sowie ausgewaehlte Buchungsbereiche
+kopiert werden. Ist die Tabellengrenze nicht bekannt, bricht der Export ab.
 
 Die Kopie ist ein neues Bild-PDF: Originaltextschichten, Anhaenge, Formulare,
 Metadatenwerte und digitale Signaturen werden nicht uebernommen. Die Originale

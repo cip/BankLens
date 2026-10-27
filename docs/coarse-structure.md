@@ -5,7 +5,7 @@ die Bedeutung einzelner Kuerzel oder interner Kennungen im Buchungstext.
 
 | Ebene | Rollen | Zweck |
 | --- | --- | --- |
-| Kontokopf | Wiederholbares `owner.name`, Adresszeilen, Kontonummer/IBAN, Kontowaehrung | Personen und Konto zum Auszug zuordnen; spaeter zentrale Angaben maskieren. |
+| Kontokopf | Wiederholbares `owner.name`, Adresszeilen, Kontonummer/IBAN, Kontowaehrung | Personen und Konto zuordnen; eingerichtete Angaben im Nachweis gezielt maskieren. |
 | Auszug | Auszugsdatum/-zeitraum und Salden | Kontext zum jeweiligen Dokument. |
 | Buchung | `transaction.row` | Gesamten physischen Block einschliesslich seiner Zeilen und Positionen adressieren. |
 | Grobe Werte | `transaction.booking_date`, `transaction.value_date`, `transaction.amount` | Daten und rechten Buchungsbetrag separat erfassen. |

@@ -86,7 +86,7 @@ python -m banklens_pdf preview "C:\Pfad\zu\deinen\Kontoauszuegen"
 
 Jede exportierte Seite enthält einen Quellverweis mit Originaldateiname und Seitenzahl. Wenn der Dateiname nicht erscheinen soll, wähle unter **Quellverweis auf jeder Seite** die neutrale Dokumentnummer. Dazu kommt der Vermerk **„Geschwärzte Kopie erstellt mit BankLens“** mit einem klickbaren Link zum Projekt.
 
-**Der gesamte Kontokopf bleibt derzeit sichtbar**, einschließlich Namen und Kontodaten. Andere Buchungen sowie der Summen- und Saldenbereich unterhalb der Buchungstabelle werden geschwärzt. Prüfe die Ausgabe vor jeder Weitergabe.
+Vor Vorschau und Export kannst du erkannte Felder im Kontokopf einzeln zum Schwärzen auswählen. Kontoinhaber 1 und 2, Adresse, Kontonummer, IBAN sowie Anfangs- und Endsaldo sind vorausgewählt; Währung und Auszugsangaben bleiben standardmäßig sichtbar. Weitere Felder lassen sich bei Bedarf auswählen. Dafür muss das Feld im Bankprofil für die jeweilige Seitenart eingerichtet sein. Felder, die das Profil auf einer Seite nicht erkennt, bleiben sichtbar; prüfe deshalb jede Vorschauseite. Andere Buchungen sowie der Summen- und Saldenbereich unterhalb der Buchungstabelle werden geschwärzt.
 
 ## Andere Banken mit der Feldwerkstatt anlernen
 
@@ -125,7 +125,7 @@ Die geschwärzten Kopien werden als neue Bild-PDFs erstellt. Originaltextschicht
 
 BankLens ist ein früher Prototyp. Die Ausgabe hängt davon ab, ob das Layout und die Buchungsgrenzen korrekt erkannt werden. Wenn eine erforderliche Tabellengrenze oder Buchungsfortsetzung ungeklärt ist, wird der betroffene Export gesperrt.
 
-Derzeit werden textbasierte, ungedrehte PDFs unterstützt. OCR für Scans, eine gezielte Auswahl der sichtbaren Kontokopfdaten und CSV-Export sind noch offen. Eine Suche zeigt höchstens 500 Treffer; pro Export sind bis zu 200 Seiten möglich.
+Derzeit werden textbasierte, ungedrehte PDFs unterstützt. OCR für Scans und CSV-Export sind noch offen. Eine Suche zeigt höchstens 500 Treffer; pro Export sind bis zu 200 Seiten möglich.
 
 Weitere Informationen zu Erkennung, Konfiguration, Speicherung und Diagnose findest du in den [technischen Details](docs/technical-details.md). Das [Rollen- und Strukturmodell](docs/coarse-structure.md) und die [Formatquellen zu Bank Austria](docs/bank-format-sources.md) vertiefen den Aufbau der Auszüge. Einrichtung und Prüfungen für Beiträge beschreibt [CONTRIBUTING.md](CONTRIBUTING.md).
 

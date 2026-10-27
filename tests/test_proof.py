@@ -10,10 +10,13 @@ import time
 import unittest
 
 from pypdf import PdfReader
+from PIL import Image
+import pypdfium2 as pdfium
 from reportlab.pdfgen import canvas
 
-from banklens_pdf.preview import Review, make_server
-from banklens_pdf.proof import ProofError, ProofService, index_bookings, page_bands, render_redacted, write_redacted_pdf, write_combined_pdf
+from banklens_pdf.preview import Review, make_server, quiet_renderer
+from banklens_pdf.proof import ProofError, ProofService, index_bookings, page_bands, proof_profile_context, render_redacted, write_redacted_pdf, write_combined_pdf
+from banklens_pdf.fields import bounds
 
 
 def artificial_pdf():
@@ -65,6 +68,51 @@ def artificial_pdf():
     return stream.getvalue()
 
 
+def redaction_pdf():
+    """Artificial one-page header with recognizable personal field roles."""
+    stream=io.BytesIO()
+    pdf=canvas.Canvas(stream,pagesize=(600,600))
+    pdf.setFont("Helvetica-Bold",14)
+    pdf.drawString(40,580,"ARTIFICIAL BANK")
+    pdf.setFont("Helvetica",9)
+    values=[
+        ("Kontoinhaber 1:","SAMPLE_OWNER_ONE",555),
+        ("Kontoinhaber 2:","SAMPLE_OWNER_TWO",540),
+        ("Adresse:","SAMPLE_ADDRESS",525),
+        ("Kontonummer:","0000123456",510),
+        ("IBAN:","DE00123456789012345678",495),
+        ("Waehrung:","EUR",480),
+        ("Auszugsdatum:","01.09.2026",465),
+        ("Auszugszeitraum:","SAMPLE_PERIOD",450),
+        ("Anfangssaldo:","123,45",435),
+        ("Endsaldo:","678,90",420),
+    ]
+    for label,value,y in values:
+        pdf.drawString(40,y,label)
+        pdf.drawString(180,y,value)
+    pdf.setFont("Helvetica",8)
+    pdf.drawString(40,380,"Buchungsnr./Buchungstext")
+    pdf.drawString(450,380,"Wert")
+    pdf.drawString(520,380,"Betrag")
+    pdf.setFont("Courier",10)
+    pdf.drawString(40,340,"01.10 POS")
+    pdf.drawString(100,340,"KEEP_SYNTHETIC_BOOKING")
+    pdf.drawString(450,340,"01.10")
+    pdf.drawRightString(580,340,"42,50-")
+    pdf.drawString(40,315,"02.10 POS")
+    pdf.drawString(100,315,"HIDDEN_SYNTHETIC_BOOKING")
+    pdf.drawString(450,315,"02.10")
+    pdf.drawRightString(580,315,"99,00-")
+    pdf.setFont("Helvetica",7)
+    pdf.drawString(40,270,"alter Kontostand")
+    pdf.drawString(390,270,"neuer Kontostand")
+    pdf.setFont("Courier",10)
+    pdf.drawRightString(580,250,"8888,88")
+    pdf.showPage()
+    pdf.save()
+    return stream.getvalue()
+
+
 class ProofTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -82,6 +130,106 @@ class ProofTests(unittest.TestCase):
     def tearDown(self):
         self.assertEqual(self.original.read_bytes(),self.source_bytes)
         self.temporary.cleanup()
+
+    def test_selected_header_fields_match_in_preview_and_export(self):
+        source=self.root/"header-source"
+        source.mkdir()
+        original=source/"synthetic-header.pdf"
+        synthetic_bytes=redaction_pdf()
+        original.write_bytes(synthetic_bytes)
+        review=Review(source,self.root/"header-state")
+        layout=review.text_layout("document-001",1)
+        examples=[
+            ("owner.name","SAMPLE_OWNER_ONE","holder-1"),
+            ("owner.name","SAMPLE_OWNER_TWO","holder-2"),
+            ("owner.address.line1","SAMPLE_ADDRESS",None),
+            ("account.number","0000123456",None),
+            ("account.iban","DE00123456789012345678",None),
+            ("account.currency","EUR",None),
+            ("statement.date","01.09.2026",None),
+            ("statement.period","SAMPLE_PERIOD",None),
+            ("statement.opening_balance","123,45",None),
+            ("statement.closing_balance","678,90",None),
+        ]
+        workspace=review.empty_workspace()
+        annotations=workspace["documents"][0]["annotations"]
+        for index,(field,value,entity_id) in enumerate(examples):
+            tokens=[token for token in layout["tokens"] if token["text"]==value]
+            self.assertTrue(tokens,value)
+            annotation={"id":f"header-example-{index}","field":field,"page":1,
+                        "token_ids":[token["id"] for token in tokens],"kind":"example",
+                        "row_id":None,"entity_id":entity_id}
+            if entity_id is None:
+                annotation.pop("entity_id")
+            annotations.append(annotation)
+        review.save_workspace(workspace)
+        profile,workspace=proof_profile_context(review)
+        piece_tokens=[token for token in layout["tokens"]
+                      if token["text"]=="KEEP_SYNTHETIC_BOOKING"]
+        self.assertTrue(piece_tokens)
+        row_tokens=[token for token in layout["tokens"] if token["line"]==piece_tokens[0]["line"]]
+        piece={"document_id":"document-001","page":1,
+               "token_ids":[token["id"] for token in row_tokens],"box":bounds(row_tokens)}
+        service=ProofService(review,self.root/"header-exports")
+        service.profile,service.workspace=profile,workspace
+        metadata={field["id"]:field for field in service.state()["redaction_fields"]}
+        self.assertTrue(metadata["owner-1"]["available"])
+        self.assertTrue(metadata["owner-2"]["available"])
+        self.assertTrue(metadata["owner-1"]["default"])
+        self.assertTrue(metadata["owner-2"]["default"])
+        self.assertTrue(metadata["owner-1"]["first_page"])
+        self.assertFalse(metadata["owner-1"]["following_pages"])
+        self.assertTrue(metadata["account-iban"]["default"])
+        self.assertFalse(metadata["account-currency"]["default"])
+        self.assertNotIn("SAMPLE_OWNER_ONE",json.dumps(service.state()))
+        service.records={"synthetic-booking":{"id":"synthetic-booking","complete":True,"pieces":[piece]}}
+        service.status["phase"]="ready"
+
+        def assert_field_pixels(image,hidden):
+            for value,is_hidden in hidden.items():
+                token=next(token for token in layout["tokens"] if token["text"]==value)
+                x,y,w,h=token["box"]
+                crop=image.crop((math.floor(x*image.width),math.floor(y*image.width),
+                                 math.ceil((x+w)*image.width),math.ceil((y+h)*image.width)))
+                try:
+                    extrema=crop.getextrema()
+                    if is_hidden:
+                        self.assertEqual(extrema,((0,0),(0,0),(0,0)),value)
+                    else:
+                        self.assertTrue(any(high>0 for _,high in extrema),value)
+                finally:
+                    crop.close()
+
+        png=service.preview(["synthetic-booking"],"document-001",1)
+        with Image.open(io.BytesIO(png)) as image:
+            assert_field_pixels(image,{"SAMPLE_OWNER_ONE":True,"SAMPLE_OWNER_TWO":True,
+                "SAMPLE_ADDRESS":True,"0000123456":True,"DE00123456789012345678":True,
+                "123,45":True,"678,90":True,"EUR":False,"01.09.2026":False,"SAMPLE_PERIOD":False})
+
+        chosen=["owner-1","account-iban"]
+        preview=service.preview(["synthetic-booking"],"document-001",1,redaction_fields=chosen)
+        with Image.open(io.BytesIO(preview)) as image:
+            assert_field_pixels(image,{"SAMPLE_OWNER_ONE":True,"SAMPLE_OWNER_TWO":False,
+                "SAMPLE_ADDRESS":False,"0000123456":False,"DE00123456789012345678":True})
+        service.start_export(["synthetic-booking"],redaction_fields=chosen)
+        deadline=time.monotonic()+10
+        while service.state()["export"]["phase"]=="exporting" and time.monotonic()<deadline:
+            time.sleep(.02)
+        exported=service.state()["export"]
+        self.assertEqual(exported["phase"],"ready")
+        with quiet_renderer(),pdfium.PdfDocument(service.download(exported["files"][0]["key"]).read_bytes()) as document:
+            page=document[0]
+            bitmap=page.render(scale=1,may_draw_forms=False)
+            try:
+                with bitmap.to_pil() as image:
+                    assert_field_pixels(image,{"SAMPLE_OWNER_ONE":True,"SAMPLE_OWNER_TWO":False,
+                        "SAMPLE_ADDRESS":False,"0000123456":False,"DE00123456789012345678":True})
+            finally:
+                bitmap.close()
+                page.close()
+        with self.assertRaises(ProofError):
+            service.preview(["synthetic-booking"],"document-001",1,redaction_fields=["owner-3"])
+        self.assertEqual(original.read_bytes(),synthetic_bytes)
 
     def test_index_groups_fragments_and_searches_all_fields(self):
         records=index_bookings(self.review)
@@ -190,6 +338,9 @@ class ProofTests(unittest.TestCase):
 
     def test_asynchronous_service_export_and_selection_validation(self):
         service=ProofService(self.review,self.root/"exports")
+        with self.assertRaises(ProofError) as error:
+            service.selected_redaction_fields(["owner-1"])
+        self.assertEqual(str(error.exception),"field_not_configured")
         service.start_index()
         deadline=time.monotonic()+10
         while service.state()["index"]["phase"]=="indexing" and time.monotonic()<deadline:
