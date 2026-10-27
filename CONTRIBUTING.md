@@ -3,6 +3,20 @@
 Danke, dass du BankLens verbessern moechtest. Issues und Pull Requests sind
 willkommen.
 
+## Issues und Pull Requests
+
+Arbeite für Änderungen auf einem kurzen Branch und erstelle einen Pull Request
+gegen `main`. Suche vor neuen Fehlerberichten oder Aufgaben nach passenden
+offenen und geschlossenen Issues und verlinke das zugehörige Issue im PR.
+Kleine Nachbesserungen an einem vorhandenen PR bleiben beim selben Issue.
+
+Führe vor dem Commit die zur Änderung passenden Prüfungen aus und dokumentiere
+im PR deren Ergebnisse sowie nicht ausgeführte Prüfungen. Reine
+Dokumentationsänderungen benötigen Format- und Linkprüfungen, keine App-Tests.
+Ein Merge erfolgt erst nach ausdrücklicher Freigabe des Projektinhabers.
+Der vollständige Ablauf steht unter
+[Entwicklung: vom Issue zum Pull Request](docs/development-workflow.md).
+
 ## Aenderungen vorbereiten
 
 - Halte Aenderungen klein und beschreibe den beobachteten Fehler oder Nutzen.

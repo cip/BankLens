@@ -1,0 +1,4 @@
+interface:
+  display_name: "BankLens CI and Handoff"
+  short_description: "BankLens: CI, Commit und Ergebnisübergabe"
+  default_prompt: "Use $banklens-ci-handoff to verify the exact BankLens commit and report its checks and deliverables."
