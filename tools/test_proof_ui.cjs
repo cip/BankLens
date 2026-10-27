@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs/promises');
 const path=require('node:path');
-const {chromium}=require('/Users/cip/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const {chromium}=require(process.env.BANKLENS_PLAYWRIGHT_PATH||'playwright');
 
 (async()=>{
   const root=path.resolve(__dirname,'..'),temporary=await fs.mkdtemp(path.join(root,'tmp','proof-ui-'));

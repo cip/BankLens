@@ -15,6 +15,8 @@ import math
 import os
 from pathlib import Path
 import secrets
+import subprocess
+import sys
 import tempfile
 from functools import lru_cache
 from bisect import bisect_right
@@ -387,6 +389,39 @@ class DirectoryError(ValueError):
     """Fixed error codes only; never expose filesystem exception messages."""
 
 
+def choose_directory():
+    """Open a native local folder picker without transferring PDF contents."""
+    if sys.platform=="darwin":
+        script='POSIX path of (choose folder with prompt "BankLens: Auszugsordner auswählen" default location (path to home folder))'
+        command=["/usr/bin/osascript","-e",script]
+    else:
+        script=("import sys; sys.stdout.reconfigure(encoding='utf-8'); "
+                "import tkinter as tk; from tkinter import filedialog; "
+                "root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); "
+                "path=filedialog.askdirectory(title='BankLens: Auszugsordner auswählen', mustexist=True); "
+                "root.destroy(); print(path)")
+        command=[sys.executable,"-c",script]
+    try:
+        result=subprocess.run(command,capture_output=True,text=True,encoding="utf-8",timeout=600,check=False)
+    except FileNotFoundError:
+        raise DirectoryError("directory_picker_unavailable") from None
+    except subprocess.TimeoutExpired:
+        raise DirectoryError("directory_picker_timeout") from None
+    except Exception:
+        raise DirectoryError("directory_picker_failed") from None
+    if result.returncode:
+        if sys.platform=="darwin" and "-128" in result.stderr:
+            return None
+        raise DirectoryError("directory_picker_unavailable")
+    value=result.stdout.rstrip("\r\n")
+    if not value:
+        return None
+    path=Path(value).expanduser()
+    if not path.is_absolute():
+        raise DirectoryError("directory_picker_failed")
+    return str(path)
+
+
 def open_directory(value, state_directory):
     if not isinstance(value,str) or not value.strip() or len(value)>4096 or "\x00" in value:
         raise DirectoryError("invalid_directory")
@@ -540,7 +575,7 @@ def make_server(review: Review, port=0, token=None,restored_reviews=None):
                 review,prefix,proofs=session.review,session.prefix,session.proofs
                 origin = f"http://127.0.0.1:{self.server.server_port}"
                 proof_routes={prefix+"api/proof/"+suffix for suffix in ("index","cancel","search","preview","export")}
-                routes = {prefix+"api/plan",prefix+"api/workspace",prefix+"api/learn",prefix+"api/recognize",prefix+"api/block",prefix+"api/source/load"}|proof_routes
+                routes = {prefix+"api/plan",prefix+"api/workspace",prefix+"api/learn",prefix+"api/recognize",prefix+"api/block",prefix+"api/source/load",prefix+"api/source/pick"}|proof_routes
                 if self.path not in routes or self.headers.get("Origin") != origin or self.headers.get("X-BankLens-Request") != "1":
                     return self.send_error(403)
                 size = int(self.headers.get("Content-Length", "0"))
@@ -549,6 +584,17 @@ def make_server(review: Review, port=0, token=None,restored_reviews=None):
                 if self.headers.get("Content-Type") != "application/json":
                     return self.send_error(415)
                 payload = json.loads(self.rfile.read(size))
+                if self.path==prefix+"api/source/pick":
+                    self.connection.settimeout(610)
+                    try:
+                        if not isinstance(payload,dict):
+                            raise DirectoryError("invalid_directory")
+                        directory=choose_directory()
+                        if directory is None:
+                            return self.json_response(200,{"cancelled":True})
+                        return self.json_response(200,{"directory":directory,"cancelled":False})
+                    except DirectoryError as error:
+                        return self.json_response(400,{"error":str(error)})
                 if self.path==prefix+"api/source/load":
                     try:
                         if not isinstance(payload,dict):

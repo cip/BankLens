@@ -10,11 +10,14 @@ from collections import defaultdict
 import hashlib
 import io
 import math
+import os
 from pathlib import Path
+import re
 import secrets
 import shlex
 import threading
 import unicodedata
+from urllib.parse import urlsplit
 import zipfile
 
 from PIL import Image, ImageDraw
@@ -50,18 +53,44 @@ def footer_font():
         return name
 
 
-def reference_lines(review,document_id,number,width,source_reference):
-    reference=review.paths[document_id].name if source_reference=="filename" else document_id
-    # File basenames only; control characters cannot introduce fake footers.
-    reference="".join(c if c.isprintable() else f"\\u{ord(c):04x}" for c in reference)
-    text=f"Geschwärzte Kopie | {reference} | Originalseite {number}"
-    font=footer_font()
+def wrap_footer_line(text,font,width):
     lines=[""]
     for character in text:
         if lines[-1] and pdfmetrics.stringWidth(lines[-1]+character,font,7)>width-24:
             lines.append("")
         lines[-1]+=character
-    return font,lines
+    return lines
+
+
+def repository_link(value=None):
+    value=os.environ.get("BANKLENS_REPOSITORY_URL","https://github.com/cip/BankLens") if value is None else value
+    value=value.strip()
+    if not value:
+        return None
+    parsed=urlsplit(value)
+    path=parsed.path.rstrip("/")
+    parts=path.split("/")
+    if (parsed.scheme!="https" or parsed.netloc.lower()!="github.com" or
+            parsed.username or parsed.password or parsed.query or parsed.fragment or
+            len(parts)!=3 or not re.fullmatch(r"[A-Za-z0-9-]{1,39}",parts[1]) or
+            not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}",parts[2]) or parts[2].endswith(".git")):
+        raise ProofError("invalid_repository_url")
+    return f"https://github.com/{parts[1]}/{parts[2]}"
+
+
+def reference_lines(review,document_id,number,width,source_reference,repo_url=None):
+    reference=review.paths[document_id].name if source_reference=="filename" else document_id
+    # File basenames only; control characters cannot introduce fake footers.
+    reference="".join(c if c.isprintable() else f"\\u{ord(c):04x}" for c in reference)
+    text=f"Quelle: {reference} | Originalseite {number}"
+    font=footer_font()
+    lines=wrap_footer_line(text,font,width)
+    linked_lines=[]
+    if repo_url:
+        repo_lines=wrap_footer_line(f"Geschwärzte Kopie erstellt mit BankLens · {repo_url}",font,width)
+        linked_lines=list(range(len(lines),len(lines)+len(repo_lines)))
+        lines.extend(repo_lines)
+    return font,lines,linked_lines
 
 
 def normalize(value):
@@ -242,9 +271,10 @@ def render_redacted(review,document_id,number,pieces,dpi=180):
         original.close()
 
 
-def write_combined_pdf(review,pieces,output,progress=lambda:None,source_reference="filename",dpi=180):
+def write_combined_pdf(review,pieces,output,progress=lambda:None,source_reference="filename",dpi=180,repo_url=None):
     if source_reference not in ("filename","neutral"):
         raise ProofError("invalid_reference")
+    repo_url=repository_link(repo_url)
     by_page=defaultdict(list)
     for piece in pieces:
         by_page[(piece["document_id"],piece["page"])].append(piece)
@@ -259,7 +289,7 @@ def write_combined_pdf(review,pieces,output,progress=lambda:None,source_referenc
     for document_id,number in sorted(by_page,key=lambda key:(order[key[0]],key[1])):
         image,size=render_redacted(review,document_id,number,by_page[(document_id,number)],dpi=dpi)
         try:
-            font,lines=reference_lines(review,document_id,number,size[0],source_reference)
+            font,lines,linked_lines=reference_lines(review,document_id,number,size[0],source_reference,repo_url)
             footer_height=16+len(lines)*9
             pdf.setPageSize((size[0],size[1]+footer_height))
             # The reference gets its own margin, never covering original pixels.
@@ -269,7 +299,11 @@ def write_combined_pdf(review,pieces,output,progress=lambda:None,source_referenc
             pdf.setFillColorRGB(.8,.8,.8)
             pdf.setFont(font,7)
             for index,line in enumerate(lines):
-                pdf.drawString(12,footer_height-12-index*9,line)
+                baseline=footer_height-12-index*9
+                pdf.drawString(12,baseline,line)
+                if index in linked_lines:
+                    link_width=min(size[0]-24,pdfmetrics.stringWidth(line,font,7))
+                    pdf.linkURL(repo_url,(12,baseline-2,12+link_width,baseline+8),relative=0,thickness=0)
             pdf.showPage()
         finally:
             image.close()
@@ -283,15 +317,16 @@ def write_combined_pdf(review,pieces,output,progress=lambda:None,source_referenc
         raise ProofError("source_changed")
 
 
-def write_redacted_pdf(review,document_id,pieces,output,progress=lambda:None,source_reference="filename"):
+def write_redacted_pdf(review,document_id,pieces,output,progress=lambda:None,source_reference="filename",repo_url=None):
     if any(piece["document_id"]!=document_id for piece in pieces):
         raise ProofError("invalid_selection")
-    write_combined_pdf(review,pieces,output,progress,source_reference)
+    write_combined_pdf(review,pieces,output,progress,source_reference,repo_url=repo_url)
 
 
 class ProofService:
-    def __init__(self,review,output_directory=Path("output/pdf")):
+    def __init__(self,review,output_directory=Path("output/pdf"),repo_url=None):
         self.review=review
+        self.repo_url=repository_link(repo_url)
         self.output_directory=output_directory.resolve()
         source_directory=next(iter(review.paths.values())).parent.resolve()
         if self.output_directory.is_relative_to(source_directory):
@@ -359,7 +394,7 @@ class ProofService:
         if not selected:
             raise ProofError("page_not_selected")
         stream=io.BytesIO()
-        write_combined_pdf(self.review,selected,stream,source_reference=source_reference,dpi=120)
+        write_combined_pdf(self.review,selected,stream,source_reference=source_reference,dpi=120,repo_url=self.repo_url)
         with quiet_renderer(),pdfium.PdfDocument(stream.getvalue()) as document:
             page=document[0]
             try:
@@ -406,7 +441,7 @@ class ProofService:
             if output_format=="combined":
                 target=folder/"zahlungsnachweise.pdf"
                 generated.append(target)
-                write_combined_pdf(self.review,pieces,target,progress,source_reference)
+                write_combined_pdf(self.review,pieces,target,progress,source_reference,repo_url=self.repo_url)
             else:
                 for descriptor in self.review.documents:
                     document_id=descriptor["document_id"]
@@ -414,7 +449,7 @@ class ProofService:
                         continue
                     target=folder/f"nachweis-{document_id}.pdf"
                     generated.append(target)
-                    write_redacted_pdf(self.review,document_id,by_document[document_id],target,progress,source_reference)
+                    write_redacted_pdf(self.review,document_id,by_document[document_id],target,progress,source_reference,self.repo_url)
                 if len(generated)>1:
                     bundle=folder/"zahlungsnachweise.zip"
                     pdfs=list(generated)

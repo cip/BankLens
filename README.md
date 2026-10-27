@@ -20,21 +20,39 @@ PDF-Kopien. CSV-Ausgabe und feinere Kopfkonfiguration sind noch offen.
 
 ## Starten
 
+Python 3.11+ wird benoetigt. Abhaengigkeiten in einer virtuellen Umgebung
+installieren:
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Danach das Toolkit starten:
+
 ```sh
 sh tools/pdf-toolkit preview /absoluter/pfad/zum/testset
 ```
 
-Die ausgegebene lokale URL im Browser oeffnen. Der Starter nutzt den vorhandenen
-Codex-Python-Runtime. Alternativ Python 3.11+ mit `requirements.txt` verwenden:
-`python3 -m banklens_pdf preview ...`. Beenden mit Ctrl+C im Startterminal.
+Die ausgegebene lokale URL im Browser oeffnen. Alternativ direkt mit
+`python -m banklens_pdf preview /absoluter/pfad/zum/testset` starten. Der
+Starter bevorzugt `.venv`; mit `BANKLENS_PYTHON` laesst sich ein anderer
+Python-Interpreter vorgeben. Beenden mit Ctrl+C im Startterminal.
 
-## Auszugsordner im Browser laden (ab v0.5.0)
+Beim Erstellen enthaelt jede PDF-Seite einen klickbaren Link zum Repository
+[`github.com/cip/BankLens`](https://github.com/cip/BankLens). Fuer einen Fork
+oder eine andere Repository-Adresse vor dem Start `BANKLENS_REPOSITORY_URL`
+auf `https://github.com/OWNER/REPOSITORY` setzen.
 
-In beiden Modi steht oben **Auszugsordner auf diesem Rechner**. Den lokalen
-Ordnerpfad eintragen und **Ordner laden** waehlen. Vollstaendige Pfade und
-`~/…` funktionieren, ebenso Pfade mit Leerzeichen oder paarigen
-Anfuehrungszeichen aus dem Finder. Auf dem Mac kopiert Option+Command+C den
-Pfad eines im Finder ausgewaehlten Ordners.
+## Auszugsordner laden
+
+In beiden Modi steht oben **Auszugsordner auf diesem Rechner**. **Ordner
+auswaehlen …** oeffnet den Systemdialog; alternativ den lokalen Ordnerpfad
+eintragen und **Pfad laden** waehlen. Vollstaendige Pfade und `~/…`
+funktionieren, ebenso Pfade mit Leerzeichen oder paarigen Anfuehrungszeichen
+aus dem Finder. Auf dem Mac kopiert Option+Command+C den Pfad eines im Finder
+ausgewaehlten Ordners.
 
 Das Toolkit laedt die PDF-Dateien direkt in diesem Ordner. Andere Dateitypen,
 Datei-Symlinks und Unterordner werden ignoriert. Es erstellt keine Kopien der
@@ -51,10 +69,10 @@ Dateipruefsummen geladen, das Bankprofil bleibt wiederverwendbar. Sitzungs-URLs
 gelten bis zum naechsten Serverneustart. Dann die Startadresse verwenden und
 den gewuenschten Ordner erneut laden.
 
-Der eingegebene Ordnerpfad wird ausschliesslich im POST-Request an den lokalen
-Server und in der lokalen Oberflaeche verwendet; er erscheint weder in URLs
-noch in Serverlogs. Der Server braucht Leserechte fuer den Ordner. Eingabe- und
-Arbeitsstandsordner muessen getrennt bleiben.
+Der ausgewaehlte Ordnerpfad wird nur in lokalen API-Anfragen und in der
+Oberflaeche verwendet; er erscheint weder in URLs noch in Serverlogs. Der
+Server braucht Leserechte fuer den Ordner. Eingabe- und Arbeitsstandsordner
+muessen getrennt bleiben.
 
 ## Zahlungsnachweise im Browser (POC ab v0.4.0)
 
@@ -203,7 +221,7 @@ Sitzungsdaten verwalten.
 
 ```sh
 sh tools/pdf-toolkit inspect /absoluter/pfad/zum/testset --report output/inspection.json
-/Users/cip/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 -m unittest discover -s tests -v
+python -m unittest discover -s tests -v
 node tools/test_preview_ui.cjs
 ```
 
@@ -230,7 +248,7 @@ Quelldateien. Der UI-Test erwartet `tmp/demo-input/example.pdf`, erzeugbar mit
 ## Querformat-Test der groben Strukturen
 
 ```sh
-/Users/cip/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/create_multiline_demo_pdf.py
+python tools/create_multiline_demo_pdf.py
 node tools/test_multiline_ui.cjs
 ```
 
@@ -270,6 +288,16 @@ Verknuepfungen, alte Vorschlaege, gedrehten Text) und Versionsangaben. Keine
 Originaltexte, Namen, Kontodaten, Token-IDs oder Dateinamen werden ausgegeben;
 kein Arbeitsstand wird gespeichert oder ueberschrieben. So kann der Assistent
 Fehler untersuchen, ohne die privaten Inhalte in den Chat zu uebernehmen.
+
+## Lizenz und Beitraege
+
+BankLens steht unter der [GNU General Public License Version 3](https://www.gnu.org/licenses/gpl-3.0.html)
+(GPL-3.0-only), wie `rem-app-create`. Weitergegebene veraenderte Versionen
+muessen unter GPL-3.0-only bleiben und den Quellcode bereitstellen. Der
+Copyright-Inhaber kann eigene Beitraege zusaetzlich anders lizenzieren; fuer
+Beitraege anderer braucht er ausdrueckliche Erlaubnis. Details: `LICENSE` und
+`COPYRIGHT.md`; Hinweise fuer Beitraege und reproduzierbare Tests stehen in
+`CONTRIBUTING.md`.
 
 ## Reparatur bestehender Feldzuordnungen
 
