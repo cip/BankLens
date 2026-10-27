@@ -1,10 +1,11 @@
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BankLens · Felder lernen</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BankLens · Felder lernen</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script><script src="source.js" defer></script></head>
 <body>
 <header><a class="brand" href="./">◧ BankLens <span>Feldwerkstatt <small id="app-version"></small></span></a><nav class="mode-nav"><a href="./" aria-current="page">Feldwerkstatt</a><a href="proof.html">Zahlungsnachweise</a></nav><span class="local"><i></i> Verarbeitung auf deinem Rechner</span></header>
 <main>
   <section class="intro"><div class="eyebrow">BEISPIELE GEBEN · STRUKTUR ERKENNEN</div><h1>Zeig einmal, was wohin gehört.</h1><p>Wähle Text im Auszug und ordne ihm ein Feld zu. Das Toolkit sucht damit nach weiteren passenden Stellen.</p></section>
+  <section class="source-card" aria-label="Auszugsordner"><form id="source-form"><label for="source-directory">Auszugsordner auf diesem Rechner</label><div class="source-line"><input id="source-directory" type="text" placeholder="/Users/…/Kontoauszüge" autocomplete="off" spellcheck="false" disabled><button id="source-load" class="secondary" disabled>Ordner laden</button></div><p class="help">Ordnerpfad einfügen. Geladen werden die PDFs direkt in diesem Ordner; Unterordner bleiben außen vor. Vor dem Wechsel neue Beispiele speichern.</p><p id="source-status" role="status" aria-live="polite">Ordnerinformationen werden geladen …</p></form></section>
   <div class="notice"><strong>V1: Kopf und ganze Buchungen.</strong> Markiere eine Buchung als Beispiel. Das Toolkit sucht vollständige Blöcke mit Datum, Wertdatum, Betrag und dem gesamten Buchungstext. Kürzel und Zeichen bleiben unverändert.</div>
   <div id="revision-notice" class="notice" role="status" hidden><span id="revision-message"></span> <button id="refresh-suggestions" class="secondary">Vorschläge neu berechnen</button></div>
   <div class="workspace">

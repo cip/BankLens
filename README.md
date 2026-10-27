@@ -28,6 +28,34 @@ Die ausgegebene lokale URL im Browser oeffnen. Der Starter nutzt den vorhandenen
 Codex-Python-Runtime. Alternativ Python 3.11+ mit `requirements.txt` verwenden:
 `python3 -m banklens_pdf preview ...`. Beenden mit Ctrl+C im Startterminal.
 
+## Auszugsordner im Browser laden (ab v0.5.0)
+
+In beiden Modi steht oben **Auszugsordner auf diesem Rechner**. Den lokalen
+Ordnerpfad eintragen und **Ordner laden** waehlen. Vollstaendige Pfade und
+`~/…` funktionieren, ebenso Pfade mit Leerzeichen oder paarigen
+Anfuehrungszeichen aus dem Finder. Auf dem Mac kopiert Option+Command+C den
+Pfad eines im Finder ausgewaehlten Ordners.
+
+Das Toolkit laedt die PDF-Dateien direkt in diesem Ordner. Andere Dateitypen,
+Datei-Symlinks und Unterordner werden ignoriert. Es erstellt keine Kopien der
+Originale. Im Nachweis-Modus startet danach automatisch das Einlesen der
+Buchungen. Die Feldwerkstatt oeffnet die erste Seite des neuen Auszugsordners.
+Ein ungueltiger Pfad oder ein Fehler beim Oeffnen laesst den bisherigen
+Arbeitsstand und die Ergebnisse erhalten.
+
+Jeder Ladevorgang erhaelt eigene Sitzungs-URLs fuer beide Modi. Bereits offene
+Tabs bleiben bei ihrem bisherigen Ordner; ihre Auswahl und laufende Exporte
+werden nicht auf andere Dateien umgebogen. Ungespeicherte Beispiele vor dem
+Verlassen eines Tabs speichern. Vorhandene Zuordnungen werden anhand der
+Dateipruefsummen geladen, das Bankprofil bleibt wiederverwendbar. Sitzungs-URLs
+gelten bis zum naechsten Serverneustart. Dann die Startadresse verwenden und
+den gewuenschten Ordner erneut laden.
+
+Der eingegebene Ordnerpfad wird ausschliesslich im POST-Request an den lokalen
+Server und in der lokalen Oberflaeche verwendet; er erscheint weder in URLs
+noch in Serverlogs. Der Server braucht Leserechte fuer den Ordner. Eingabe- und
+Arbeitsstandsordner muessen getrennt bleiben.
+
 ## Zahlungsnachweise im Browser (POC ab v0.4.0)
 
 1. Oben **Zahlungsnachweise** waehlen und **Auszuege einlesen** starten. Die
@@ -68,8 +96,9 @@ Der Suchindex und die Auswahl bleiben im Arbeitsspeicher des lokalen Servers
 bzw. Browsers. Exportdateien liegen unter `output/pdf/<zufaellige-export-id>/`
 (Dateien `0600`, Exportordner `0700`) und sind von Git ausgeschlossen. Die
 Downloadlinks gelten fuer die laufende Serversitzung; die Dateien bleiben
-bis zum manuellen Loeschen auf der Platte. Neue oder geaenderte Originale
-erfordern einen Neustart des Toolkits und erneutes Einlesen.
+bis zum manuellen Loeschen auf der Platte. Bei neuen oder geaenderten Originalen
+den Ordner erneut mit **Ordner laden** oeffnen; dabei werden die aktuellen
+Dateien und ihre Pruefsummen neu erfasst.
 
 ## Beispiele geben und den Rest erkennen
 

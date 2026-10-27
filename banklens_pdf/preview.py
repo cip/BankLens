@@ -64,6 +64,7 @@ class Review:
         state_directory = state_directory.resolve()
         if not directory.is_dir() or state_directory.is_relative_to(directory):
             raise ValueError("invalid_directories")
+        self.directory = directory
         self.paths = {}
         self.documents = []
         self.state_directory = state_directory
@@ -382,20 +383,64 @@ class Review:
         return sum(len(d["regions"]) for d in cleaned["documents"])
 
 
+class DirectoryError(ValueError):
+    """Fixed error codes only; never expose filesystem exception messages."""
+
+
+def open_directory(value, state_directory):
+    if not isinstance(value,str) or not value.strip() or len(value)>4096 or "\x00" in value:
+        raise DirectoryError("invalid_directory")
+    value=value.strip()
+    if len(value)>=2 and value[0]==value[-1] and value[0] in ("'",'"'):
+        value=value[1:-1]
+    try:
+        directory=Path(value).expanduser()
+        if not directory.is_absolute():
+            raise DirectoryError("absolute_directory_required")
+        directory=directory.resolve(strict=True)
+        if not directory.is_dir():
+            raise DirectoryError("not_a_directory")
+        if state_directory.resolve().is_relative_to(directory):
+            raise DirectoryError("directory_contains_state")
+        return Review(directory,state_directory)
+    except DirectoryError:
+        raise
+    except FileNotFoundError:
+        raise DirectoryError("directory_not_found") from None
+    except ValueError as error:
+        code="no_pdfs" if str(error)=="no_documents" else "directory_unreadable"
+        raise DirectoryError(code) from None
+    except Exception:
+        raise DirectoryError("directory_unreadable") from None
+
+
+class ReviewSession:
+    """Each opened folder has its own URLs, review and in-memory proof index."""
+    def __init__(self,review,token):
+        self.review=review
+        self.prefix=f"/{token}/"
+        self.proof_service=None
+        self.proof_lock=threading.Lock()
+
+    def proofs(self):
+        with self.proof_lock:
+            if self.proof_service is None:
+                from .proof import ProofService
+                self.proof_service=ProofService(self.review)
+        return self.proof_service
+
+    def source(self):
+        return {"directory":str(self.review.directory),"document_count":len(self.review.documents),
+                "page_count":sum(d["page_count"] for d in self.review.documents)}
+
+
 def make_server(review: Review, port=0, token=None):
     token = token or secrets.token_urlsafe(32)
     if not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",token):
         raise ValueError("invalid_session_token")
     prefix = f"/{token}/"
-    proof_service=None
-    proof_lock=threading.Lock()
-    def proofs():
-        nonlocal proof_service
-        with proof_lock:
-            if proof_service is None:
-                from .proof import ProofService
-                proof_service=ProofService(review)
-        return proof_service
+    sessions={token:ReviewSession(review,token)}
+    sessions_lock=threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
@@ -425,13 +470,21 @@ def make_server(review: Review, port=0, token=None):
         def json_response(self, status, value):
             self.respond(status, json.dumps(value).encode("utf-8"), "application/json")
 
-        def allowed(self):
-            return self.headers.get("Host") == f"127.0.0.1:{self.server.server_port}" and self.path.startswith(prefix)
+        def session(self):
+            if self.headers.get("Host") != f"127.0.0.1:{self.server.server_port}":
+                return None
+            parts=self.path.split("/",2)
+            if len(parts)!=3 or parts[0]:
+                return None
+            with sessions_lock:
+                return sessions.get(parts[1])
 
         def do_GET(self):
             try:
-                if not self.allowed():
+                session=self.session()
+                if session is None:
                     return self.send_error(404)
+                review,prefix,proofs=session.review,session.prefix,session.proofs
                 route = self.path[len(prefix):]
                 assets = {"": ("index.html", "text/html; charset=utf-8"),
                           "app.js": ("app.js", "text/javascript; charset=utf-8"),
@@ -439,11 +492,14 @@ def make_server(review: Review, port=0, token=None):
                           "proof.html":("proof.html","text/html; charset=utf-8"),
                           "proof.js":("proof.js","text/javascript; charset=utf-8"),
                           "proof.css":("proof.css","text/css; charset=utf-8")}
+                assets["source.js"]=("source.js","text/javascript; charset=utf-8")
                 if route in assets:
                     name, mime = assets[route]
                     return self.respond(200, (WEB / name).read_bytes(), mime)
                 if route == "api/documents":
                     return self.json_response(200, review.public_documents())
+                if route == "api/source":
+                    return self.json_response(200,session.source())
                 if route == "api/plan":
                     return self.json_response(200, review.load())
                 if route == "api/workspace":
@@ -473,10 +529,14 @@ def make_server(review: Review, port=0, token=None):
 
         def do_POST(self):
             try:
+                session=self.session()
+                if session is None:
+                    return self.send_error(403)
+                review,prefix,proofs=session.review,session.prefix,session.proofs
                 origin = f"http://127.0.0.1:{self.server.server_port}"
                 proof_routes={prefix+"api/proof/"+suffix for suffix in ("index","cancel","search","preview","export")}
-                routes = {prefix+"api/plan",prefix+"api/workspace",prefix+"api/learn",prefix+"api/recognize",prefix+"api/block"}|proof_routes
-                if not self.allowed() or self.path not in routes or self.headers.get("Origin") != origin or self.headers.get("X-BankLens-Request") != "1":
+                routes = {prefix+"api/plan",prefix+"api/workspace",prefix+"api/learn",prefix+"api/recognize",prefix+"api/block",prefix+"api/source/load"}|proof_routes
+                if self.path not in routes or self.headers.get("Origin") != origin or self.headers.get("X-BankLens-Request") != "1":
                     return self.send_error(403)
                 size = int(self.headers.get("Content-Length", "0"))
                 if not 0 < size <= MAX_BODY:
@@ -484,6 +544,23 @@ def make_server(review: Review, port=0, token=None):
                 if self.headers.get("Content-Type") != "application/json":
                     return self.send_error(415)
                 payload = json.loads(self.rfile.read(size))
+                if self.path==prefix+"api/source/load":
+                    try:
+                        if not isinstance(payload,dict):
+                            raise DirectoryError("invalid_directory")
+                        with sessions_lock:
+                            if len(sessions)>=64:
+                                raise DirectoryError("too_many_directories")
+                        opened=open_directory(payload.get("directory"),review.state_directory)
+                        opened_token=secrets.token_urlsafe(32)
+                        opened_session=ReviewSession(opened,opened_token)
+                        with sessions_lock:
+                            if len(sessions)>=64:
+                                raise DirectoryError("too_many_directories")
+                            sessions[opened_token]=opened_session
+                        return self.json_response(200,{**opened_session.source(),"session_path":opened_session.prefix})
+                    except DirectoryError as error:
+                        return self.json_response(400,{"error":str(error)})
                 if self.path in proof_routes:
                     from .proof import ProofError
                     try:

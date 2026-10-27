@@ -52,7 +52,37 @@ const {chromium}=require('/Users/cip/.cache/codex-runtimes/codex-primary-runtime
     await page.waitForFunction(()=>document.querySelectorAll('.token').length>0&&!document.body.classList.contains('busy'));
     await page.getByRole('link',{name:'Zahlungsnachweise',exact:true}).click();
     await page.waitForFunction(()=>document.querySelectorAll('#result-rows tr').length===10);
+    // Opening a folder creates an isolated session, including both modes.
+    const oldPage=await browser.newPage();await oldPage.goto(url+'proof.html');
+    await oldPage.waitForFunction(()=>document.querySelectorAll('#result-rows tr').length===10);
+    const nextSource=path.join(temporary,'neuer Ordner ä');await fs.mkdir(nextSource);
+    await fs.copyFile(path.join(root,'tmp','multiline-input','example.pdf'),path.join(nextSource,'new.PDF'));
+    await fs.writeFile(path.join(nextSource,'notes.txt'),'Not a PDF');
+    await fs.mkdir(path.join(nextSource,'nested'));
+    await fs.copyFile(path.join(root,'tmp','multiline-input','example.pdf'),path.join(nextSource,'nested','ignored.pdf'));
+    await page.locator('#source-directory').fill(path.join(temporary,'missing'));
+    await page.locator('#source-load').click();
+    await page.waitForFunction(()=>document.querySelector('#source-status').textContent.includes('nicht gefunden'));
+    assert.equal(await page.locator('#result-rows tr').count(),10);
+    await page.locator('#source-directory').fill('"'+nextSource+'"');
+    await page.locator('#source-load').click();
+    await page.waitForURL(current=>current.pathname!==new URL(url+'proof.html').pathname);
+    await page.waitForFunction(()=>document.querySelectorAll('#result-rows tr').length===5,{},{timeout:30000});
+    assert.equal(await page.locator('#source-directory').inputValue(),nextSource);
+    assert.match(await page.locator('#source-status').textContent(),/1 PDF · 2 Seiten/);
+    assert.equal(await oldPage.locator('#source-directory').inputValue(),source);
+    assert.equal(await oldPage.locator('#result-rows tr').count(),10);
+    await page.setViewportSize({width:1440,height:1000});
+    await page.screenshot({path:path.join(output,'source-desktop.png'),fullPage:true});
+    await page.setViewportSize({width:390,height:844});
+    await page.screenshot({path:path.join(output,'source-mobile.png'),fullPage:true});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.getByRole('link',{name:'Feldwerkstatt',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelectorAll('.token').length>0&&!document.body.classList.contains('busy'));
+    assert.equal(await page.locator('#document option').count(),1);
+    assert.equal(await page.locator('#source-directory').inputValue(),nextSource);
+    await oldPage.close();
     assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-    console.log(JSON.stringify({proof_browser_checks:'passed',artificial_documents:2,logical_bookings:10,cross_page_search:true,selection:true,sanitized_preview:true,pdf_download:true,zip_download:true,mode_switch:true,external_requests:0,artificial_inputs_only:true}));
+    console.log(JSON.stringify({proof_browser_checks:'passed',artificial_documents:2,logical_bookings:10,cross_page_search:true,selection:true,sanitized_preview:true,pdf_download:true,zip_download:true,mode_switch:true,folder_loading:true,failed_folder_preserves_results:true,old_tabs_isolated:true,new_folder_autoindexed:true,external_requests:0,artificial_inputs_only:true}));
   }finally{if(browser)await browser.close();server.kill('SIGTERM');await new Promise(resolve=>server.once('close',resolve));await fs.rm(temporary,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});

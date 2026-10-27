@@ -1,10 +1,11 @@
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BankLens · Zahlungsnachweise</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="proof.css"><script src="proof.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BankLens · Zahlungsnachweise</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="proof.css"><script src="proof.js" defer></script><script src="source.js" defer></script></head>
 <body>
 <header><a class="brand" href="./">◧ BankLens <span id="version">Lokaler POC</span></a><nav class="mode-nav"><a href="./">Feldwerkstatt</a><a href="proof.html" aria-current="page">Zahlungsnachweise</a></nav><span class="local"><i></i> Auf deinem Rechner</span></header>
 <main>
   <section class="intro"><div class="eyebrow">ZAHLUNGSNACHWEISE · POC</div><h1>Die richtige Buchung. Als Nachweis.</h1><p>Alle Auszüge durchsuchen, passende Buchungen auswählen und geschwärzte Kopien herunterladen.</p></section>
+  <section class="source-card" aria-label="Auszugsordner"><form id="source-form"><label for="source-directory">Auszugsordner auf diesem Rechner</label><div class="source-line"><input id="source-directory" type="text" placeholder="/Users/…/Kontoauszüge" autocomplete="off" spellcheck="false" disabled><button id="source-load" class="secondary" disabled>Ordner laden</button></div><p class="help">Ordnerpfad einfügen. Geladen werden die PDFs direkt in diesem Ordner; Unterordner bleiben außen vor. Originale bleiben unverändert.</p><p id="source-status" role="status" aria-live="polite">Ordnerinformationen werden geladen …</p></form></section>
   <section class="search-card">
     <div class="index-bar"><div><strong>1. Auszüge einlesen</strong><p id="index-status" role="status">Verbindung wird aufgebaut …</p></div><div><button id="index" class="secondary" disabled>Auszüge einlesen</button><button id="stop" class="secondary" hidden>Anhalten</button></div></div>
     <progress id="index-progress" max="1" value="0" hidden></progress>
