@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+bundled_python=/Users/cip/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3
+cd "$project_dir"
+if [ -x "$bundled_python" ]; then
+    exec "$bundled_python" -m banklens_pdf "$@"
+fi
+exec python3 -m banklens_pdf "$@"

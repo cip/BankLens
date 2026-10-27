@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BankLens · Felder lernen</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head>
+<body>
+<header><a class="brand" href="./">◧ BankLens <span>Feldwerkstatt <small id="app-version"></small></span></a><span class="local"><i></i> Verarbeitung auf deinem Rechner</span></header>
+<main>
+  <section class="intro"><div class="eyebrow">BEISPIELE GEBEN · STRUKTUR ERKENNEN</div><h1>Zeig einmal, was wohin gehört.</h1><p>Wähle Text im Auszug und ordne ihm ein Feld zu. Das Toolkit sucht damit nach weiteren passenden Stellen.</p></section>
+  <div class="notice"><strong>V1: Kopf und ganze Buchungen.</strong> Markiere eine Buchung als Beispiel. Das Toolkit sucht vollständige Blöcke mit Datum, Wertdatum, Betrag und dem gesamten Buchungstext. Kürzel und Zeichen bleiben unverändert.</div>
+  <div id="revision-notice" class="notice" role="status" hidden><span id="revision-message"></span> <button id="refresh-suggestions" class="secondary">Vorschläge neu berechnen</button></div>
+  <div class="workspace">
+    <section class="viewer" aria-label="PDF und Texterkennung">
+      <div class="toolbar"><label class="sr-only" for="document">Dokument</label><select id="document" disabled></select><div class="pager"><button id="previous" aria-label="Vorherige Seite" disabled>←</button><label for="page">Seite</label><input id="page" type="number" min="1" value="1" aria-label="Seitenzahl" disabled><span id="page-count">/ —</span><button id="next" aria-label="Nächste Seite" disabled>→</button></div></div>
+      <div class="view-options"><label for="filter">Felder anzeigen</label><select id="filter"><option value="structure">Große Strukturen</option><option value="">Alle Felder</option></select><span class="legend"><i class="example-dot"></i> Beispiel <i class="suggestion-dot"></i> Vorschlag</span></div>
+      <div class="paper-space"><div id="paper" class="paper"><img id="page-image" alt="Originalseite – nur in dieser lokalen Vorschau" draggable="false"><svg id="overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"></svg><div id="text-layer" aria-label="PDF-Text auswählen"></div></div><div id="loading" role="status">Vorschau wird geladen …</div></div>
+      <div class="viewer-footer"><button id="retry-page" class="secondary" hidden>Seite erneut laden</button> Text wie in einem Dokument auswählen · Ein Klick wählt ein ganzes Wort · Originale bleiben unverändert</div>
+      <section class="rows-section"><h2>Kontoinhaber auf dieser Seite</h2><div id="owners" class="owner-list"></div><h2>Buchungen auf dieser Seite</h2><p id="rows-empty" class="help">Nach der Erkennung siehst du hier die Buchungen mit ihren zugeordneten Unterfeldern.</p><div class="table-scroll"><table id="rows-table" hidden><thead><tr><th>Status</th><th>Buchungsdatum</th><th>Wertdatum</th><th>Gesamter Buchungstext</th><th>Betrag</th></tr></thead><tbody id="rows-body"></tbody></table></div></section>
+    </section>
+    <aside>
+      <section class="card"><div class="card-title"><span class="step">1</span><h2>Text zuordnen</h2></div>
+        <div id="selection-preview" class="selection-preview" tabindex="0" role="region" aria-label="Ausgewählter Text">Wähle einen Text im PDF.</div>
+        <div class="button-pair"><button id="whole-line" class="secondary" disabled>Ganze Textzeile</button><button id="clear-selection" class="secondary" disabled>Auswahl lösen</button></div>
+        <button id="whole-booking" class="secondary full spaced" disabled>Ganze Buchung auswählen</button>
+        <label for="field">Was ist dieser Text?</label><select id="field" disabled></select><p id="field-help" class="help">Kontoangaben und Buchungsfelder werden getrennt gelernt.</p>
+        <label class="checkbox"><input type="checkbox" id="fine-fields">Optionale feinere Feldrollen anzeigen</label>
+        <div id="holder-control" hidden><label for="holder">Gehört zu</label><select id="holder"><option value="">Automatisch nach Namenszeile</option><option value="holder-1">Kontoinhaber 1</option><option value="holder-2">Kontoinhaber 2</option></select><p class="help">Mehrere Namen werden als eigene Personen gespeichert. Eine Adresse kann auch gemeinsam gelten.</p></div>
+        <button id="add-example" class="primary full" disabled>Als Beispiel zuordnen</button>
+      </section>
+      <section class="card"><div class="card-title"><span class="step">2</span><h2>Weitere Stellen erkennen</h2></div>
+        <label for="scope">Suchen in</label><select id="scope"><option value="document">Diesem Dokument</option><option value="all">Allen PDFs im Testset</option></select>
+        <button id="recognize" class="primary full spaced" disabled>Aus Beispielen erkennen</button><button id="apply-profile" class="secondary full spaced" disabled>Gespeichertes Profil anwenden</button><button id="cancel" class="secondary full spaced" hidden>Erkennung anhalten</button>
+        <progress id="progress" max="1" value="0" hidden></progress><p id="recognition-status" class="help">Vorschläge sind keine bestätigten Ergebnisse. Abweichende Buchungsarten brauchen gegebenenfalls ein weiteres Beispiel.</p>
+        <div id="summary" class="summary">Noch keine Beispiele</div>
+      </section>
+      <section class="card"><div class="card-title"><span class="step">3</span><h2>Zuordnungen prüfen</h2></div><div class="counts"><span id="counts">Auf dieser Seite</span><span id="dirty" class="badge">Gespeichert</span></div><ul id="annotations"></ul><p id="empty" class="help">Hier erscheinen deine Beispiele und die erkannten Vorschläge.</p><button id="accept-page" class="secondary full" disabled>Vorschläge dieser Seite übernehmen</button><button id="next-suggestion" class="secondary full spaced" disabled>Nächste Seite mit Vorschlägen</button><button id="undo" class="secondary full spaced" disabled>Letzte Änderung rückgängig</button></section>
+      <section class="card save-card"><label for="profile-name">Name des Bankprofils</label><input id="profile-name" value="Bank Austria" maxlength="80" autocomplete="off"><button id="save" class="primary full spaced" disabled>Profil & Zuordnungen speichern</button><p class="help">Das Profil speichert Feldrollen und Layoutregeln für weitere Auszüge. Anonymisierung und Testdaten können später darauf aufbauen.</p><p id="status" role="status" aria-live="polite">Verbindung wird aufgebaut …</p></section>
+    </aside>
+  </div>
+</main>
+</body></html>
