@@ -45,3 +45,6 @@ node tools/test_proof_ui.cjs
 Die UI-Pruefungen verwenden nur die erzeugten Dateien unter `tmp/`. Niemals
 Testskripte auf echte Kontoauszuege umstellen. Generierte PDFs, persoenliche
 Arbeitsstaende und lokale Beispieldateien gehoeren nicht in Commits.
+
+Details zu Erkennung, Speicherung, Konfiguration und Diagnose stehen in der
+[technischen Dokumentation](docs/technical-details.md).
