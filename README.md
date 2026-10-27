@@ -75,9 +75,20 @@ Arbeitsstandsordner muessen getrennt bleiben.
    die Suche eingrenzen. Ein Export umfasst hoechstens 200 Seiten.
 4. **Schwaerzung in der Vorschau pruefen** zeigt ausschliesslich die maskierte
    Fassung. Zwischen den ausgewaehlten Seiten wechseln und das Ergebnis pruefen.
-5. **Geschwaerzte PDFs erstellen** erzeugt eine PDF-Datei je Quelldokument und
-   bei mehreren Dokumenten zusaetzlich eine ZIP-Datei. Nur Seiten mit
-   ausgewaehlten Buchungen werden ausgegeben; Fortsetzungsseiten gehoeren dazu.
+5. **Geschwaerzte PDF erstellen** erzeugt standardmaessig eine gemeinsame PDF
+   mit allen ausgewaehlten Seiten, geordnet nach Quelldatei und Originalseite.
+   Eine Seite mit mehreren Treffern erscheint nur einmal. Fortsetzungen gehoeren
+   dazu. Unter **Ausgabe** bleiben Einzel-PDFs mit zusaetzlicher ZIP-Datei
+   auswaehlbar; Seiten ohne ausgewaehlte Buchungen werden ausgelassen.
+
+Jede Ausgabeseite bekommt eine Fusszeile mit **Originaldateiname und
+Originalseite**. Es wird nur der Dateiname ohne Ordnerpfad uebernommen. Unter
+**Quellverweis auf jeder Seite** laesst sich stattdessen die neutrale
+Dokumentnummer waehlen. Lange Namen umbrechen in einem eigenen Rand unterhalb
+der Originalseite, damit keine Buchungsdaten ueberdeckt werden. Umlaute werden
+mit einer eingebetteten Schrift wiedergegeben. Die geschwaerzte Vorschau zeigt
+dieselbe Fusszeile. Bereits erstellte PDFs bleiben unveraendert; fuer die neue
+Darstellung erneut exportieren.
 
 Im POC bleibt der gesamte Kontokopf mit allen Kontoinhabern, Kontodaten und
 Auszugsangaben sichtbar. Die Auswahl einzelner Kontoinhaber folgt spaeter.

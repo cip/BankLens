@@ -434,12 +434,17 @@ class ReviewSession:
                 "page_count":sum(d["page_count"] for d in self.review.documents)}
 
 
-def make_server(review: Review, port=0, token=None):
+def make_server(review: Review, port=0, token=None,restored_reviews=None):
     token = token or secrets.token_urlsafe(32)
     if not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",token):
         raise ValueError("invalid_session_token")
     prefix = f"/{token}/"
     sessions={token:ReviewSession(review,token)}
+    # A local restart can retain open folder URLs without exposing their paths.
+    for restored_token,restored_review in (restored_reviews or {}).items():
+        if restored_token==token or not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",restored_token):
+            raise ValueError("invalid_session_token")
+        sessions[restored_token]=ReviewSession(restored_review,restored_token)
     sessions_lock=threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
@@ -573,8 +578,8 @@ def make_server(review: Review, port=0, token=None):
                         if self.path.endswith("/search"):
                             return self.json_response(200,service.search(payload.get("query","")))
                         if self.path.endswith("/preview"):
-                            return self.respond(200,service.preview(payload.get("selected_ids"),payload.get("document_id"),payload.get("page")),"image/png")
-                        return self.json_response(200,service.start_export(payload.get("selected_ids")))
+                            return self.respond(200,service.preview(payload.get("selected_ids"),payload.get("document_id"),payload.get("page"),payload.get("source_reference","filename")),"image/png")
+                        return self.json_response(200,service.start_export(payload.get("selected_ids"),payload.get("format","combined"),payload.get("source_reference","filename")))
                     except ProofError as error:
                         return self.json_response(400,{"error":str(error)})
                 if self.path == prefix+"api/workspace":

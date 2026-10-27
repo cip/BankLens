@@ -18,6 +18,8 @@ const {chromium}=require('/Users/cip/.cache/codex-runtimes/codex-primary-runtime
     const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],external=[];
     page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(new URL(r.url()).origin!==new URL(url).origin)external.push(r.url());});
     await page.goto(url+'proof.html');await page.waitForFunction(()=>!document.querySelector('#index').disabled);
+    assert.equal(await page.locator('#export-format').inputValue(),'combined');
+    assert.equal(await page.locator('#source-reference').inputValue(),'filename');
     await page.locator('#index').click();
     await page.waitForFunction(()=>document.querySelectorAll('#result-rows tr').length===10,{},{timeout:30000});
     assert.match(await page.locator('#index-status').textContent(),/10 Buchungen aus 4 Seiten/);
@@ -41,6 +43,14 @@ const {chromium}=require('/Users/cip/.cache/codex-runtimes/codex-primary-runtime
     // Searching a signed amount matches the same complete, cross-page rows.
     await query('-18,00');await page.waitForFunction(()=>document.querySelector('#select-all').checked);
     assert.equal(await page.locator('#downloads a').count(),0);
+    await page.locator('#export').click();await page.locator('#downloads a').waitFor({timeout:30000});
+    assert.equal(await page.locator('#downloads a').count(),1);
+    assert.match(await page.locator('#downloads a').textContent(),/Gemeinsame PDF/);
+    pending=page.waitForEvent('download');await page.locator('#downloads a').click();download=await pending;
+    await download.saveAs(path.join(output,'proof-combined.pdf'));
+    await page.locator('#export-format').selectOption('separate');
+    assert.equal(await page.locator('#downloads a').count(),0);
+    await page.locator('#source-reference').selectOption('neutral');
     await page.locator('#export').click();await page.locator('#downloads a').nth(2).waitFor({timeout:30000});
     assert.equal(await page.locator('#downloads a').count(),3);
     pending=page.waitForEvent('download');await page.locator('#downloads a').last().click();download=await pending;

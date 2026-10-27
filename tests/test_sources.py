@@ -56,7 +56,9 @@ class SourceTests(unittest.TestCase):
 
     def test_folder_sessions_are_independent_and_keep_access_checks(self):
         review=Review(self.source,self.state)
-        server,url=make_server(review)
+        restored_token="restored-folder-session-0123456789abcdef"
+        restored_review=Review(self.second,self.state)
+        server,url=make_server(review,restored_reviews={restored_token:restored_review})
         thread=threading.Thread(target=server.serve_forever,daemon=True)
         thread.start()
         origin=f"http://127.0.0.1:{server.server_port}"
@@ -70,6 +72,8 @@ class SourceTests(unittest.TestCase):
             connection.close()
             return result
         try:
+            restored=json.loads(request("/"+restored_token+"/api/source")[2])
+            self.assertEqual(restored["directory"],str(self.second))
             status,headers,data=request(prefix+"api/source")
             self.assertEqual(status,200)
             self.assertEqual(headers["Cache-Control"],"no-store")

@@ -13,7 +13,7 @@ from pypdf import PdfReader
 from reportlab.pdfgen import canvas
 
 from banklens_pdf.preview import Review, make_server
-from banklens_pdf.proof import ProofError, ProofService, index_bookings, page_bands, render_redacted, write_redacted_pdf
+from banklens_pdf.proof import ProofError, ProofService, index_bookings, page_bands, render_redacted, write_redacted_pdf, write_combined_pdf
 
 
 def artificial_pdf():
@@ -142,7 +142,51 @@ class ProofTests(unittest.TestCase):
             self.assertNotIn("HIDDEN",page.extract_text())
             self.assertNotIn("CONTINUED",page.extract_text()) # selected text is pixels too
             self.assertTrue(page.images)
+            self.assertIn(self.original.name,page.extract_text())
+            self.assertNotIn(str(self.source),page.extract_text())
         self.assertEqual(target.stat().st_mode&0o777,0o600)
+
+    def test_combined_pdf_deduplicates_pages_and_preserves_source_order(self):
+        second=self.source/"Zweiter Auszug Ärzte.pdf"
+        second.write_bytes(self.source_bytes)
+        review=Review(self.source,self.root/"private")
+        records=index_bookings(review)
+        selected=[r for r in reversed(records) if "CONTINUED_TARGET" in r["text"] or r["document_id"]=="document-001" and "KEEPCLINIC" in r["text"]]
+        pieces=[piece for record in selected for piece in record["pieces"]]
+        target=self.root/"combined.pdf"
+        write_combined_pdf(review,pieces,target)
+        result=PdfReader(target)
+        self.assertEqual(len(result.pages),4)
+        expected=[(self.original.name,1),(self.original.name,2),(second.name,1),(second.name,2)]
+        for page,(filename,number) in zip(result.pages,expected):
+            footer=page.extract_text()
+            self.assertIn(filename,footer)
+            self.assertIn(f"Originalseite {number}",footer)
+            self.assertNotIn("HIDDEN",footer)
+            self.assertNotIn("CONTINUED",footer)
+            self.assertTrue(page.images)
+        self.assertNotIn("PRIVATE_SOURCE",str(result.metadata))
+        neutral=self.root/"neutral.pdf"
+        write_combined_pdf(review,pieces,neutral,source_reference="neutral")
+        text="".join(page.extract_text() for page in PdfReader(neutral).pages)
+        self.assertIn("document-001",text)
+        self.assertIn("document-002",text)
+        self.assertNotIn(self.original.name,text)
+        self.assertNotIn(second.name,text)
+
+    def test_long_unicode_reference_wraps_in_its_own_margin(self):
+        filename="Ärzte_"+"langer Dateiname_"*10+"Österreich.pdf"
+        self.original.rename(self.source/filename)
+        try:
+            review=Review(self.source,self.root/"private")
+            wanted=next(r for r in index_bookings(review) if "KEEPCLINIC" in r["text"])
+            target=self.root/"long-name.pdf"
+            write_combined_pdf(review,wanted["pieces"],target)
+            page=PdfReader(target).pages[0]
+            self.assertIn("".join(filename.split()),"".join(page.extract_text().split()))
+            self.assertGreater(float(page.mediabox.height),420+25)
+        finally:
+            (self.source/filename).rename(self.original)
 
     def test_asynchronous_service_export_and_selection_validation(self):
         service=ProofService(self.review,self.root/"exports")
@@ -164,7 +208,11 @@ class ProofTests(unittest.TestCase):
             time.sleep(.02)
         state=service.state()["export"]
         self.assertEqual(state["phase"],"ready")
+        self.assertEqual([file["name"] for file in state["files"]],["zahlungsnachweise.pdf"])
         self.assertEqual(len(PdfReader(service.download(state["files"][0]["key"])).pages),1)
+        for kwargs in ({"output_format":"wrong"},{"source_reference":"wrong"}):
+            with self.assertRaises(ProofError):
+                service.start_export([record["id"]],**kwargs)
 
     def test_changed_source_is_checked_even_when_layout_was_cached(self):
         self.review.text_layout("document-001",1)

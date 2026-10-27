@@ -19,7 +19,10 @@ import zipfile
 
 from PIL import Image, ImageDraw
 import pypdfium2 as pdfium
+import reportlab
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from .fields import bounds, recognize_page, summary_boundary, table_context
@@ -28,6 +31,37 @@ from .preview import quiet_renderer
 
 class ProofError(ValueError):
     """Only fixed public codes are exposed to the browser."""
+
+
+FONT_LOCK=threading.Lock()
+
+
+def footer_font():
+    with FONT_LOCK:
+        name="BankLensReference"
+        if name not in pdfmetrics.getRegisteredFontNames():
+            paths=[Path("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
+                   Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+                   Path(reportlab.__file__).parent/"fonts"/"Vera.ttf"]
+            path=next((path for path in paths if path.is_file()),None)
+            if path is None:
+                raise ProofError("reference_font_unavailable")
+            pdfmetrics.registerFont(TTFont(name,str(path)))
+        return name
+
+
+def reference_lines(review,document_id,number,width,source_reference):
+    reference=review.paths[document_id].name if source_reference=="filename" else document_id
+    # File basenames only; control characters cannot introduce fake footers.
+    reference="".join(c if c.isprintable() else f"\\u{ord(c):04x}" for c in reference)
+    text=f"Geschwärzte Kopie | {reference} | Originalseite {number}"
+    font=footer_font()
+    lines=[""]
+    for character in text:
+        if lines[-1] and pdfmetrics.stringWidth(lines[-1]+character,font,7)>width-24:
+            lines.append("")
+        lines[-1]+=character
+    return font,lines
 
 
 def normalize(value):
@@ -208,34 +242,51 @@ def render_redacted(review,document_id,number,pieces,dpi=180):
         original.close()
 
 
-def write_redacted_pdf(review,document_id,pieces,output,progress=lambda:None):
+def write_combined_pdf(review,pieces,output,progress=lambda:None,source_reference="filename",dpi=180):
+    if source_reference not in ("filename","neutral"):
+        raise ProofError("invalid_reference")
     by_page=defaultdict(list)
     for piece in pieces:
-        by_page[piece["page"]].append(piece)
+        by_page[(piece["document_id"],piece["page"])].append(piece)
     if not by_page:
         raise ProofError("empty_selection")
-    pdf=canvas.Canvas(str(output),pageCompression=1)
+    order={d["document_id"]:index for index,d in enumerate(review.documents)}
+    pdf=canvas.Canvas(str(output) if isinstance(output,Path) else output,pageCompression=1)
     pdf.setTitle("BankLens Zahlungsnachweis - geschwaerzte Kopie")
     pdf.setAuthor("")
     pdf.setSubject("")
     pdf.setCreator("BankLens")
-    for number,page_pieces in sorted(by_page.items()):
-        image,size=render_redacted(review,document_id,number,page_pieces)
+    for document_id,number in sorted(by_page,key=lambda key:(order[key[0]],key[1])):
+        image,size=render_redacted(review,document_id,number,by_page[(document_id,number)],dpi=dpi)
         try:
-            pdf.setPageSize(size)
-            pdf.drawImage(ImageReader(image),0,0,width=size[0],height=size[1])
+            font,lines=reference_lines(review,document_id,number,size[0],source_reference)
+            footer_height=16+len(lines)*9
+            pdf.setPageSize((size[0],size[1]+footer_height))
+            # The reference gets its own margin, never covering original pixels.
+            pdf.setFillColorRGB(0,0,0)
+            pdf.rect(0,0,size[0],footer_height,fill=1,stroke=0)
+            pdf.drawImage(ImageReader(image),0,footer_height,width=size[0],height=size[1])
             pdf.setFillColorRGB(.8,.8,.8)
-            pdf.setFont("Helvetica",6)
-            pdf.drawString(10,6,f"Geschwaerzte Kopie | {document_id} | Originalseite {number}")
+            pdf.setFont(font,7)
+            for index,line in enumerate(lines):
+                pdf.drawString(12,footer_height-12-index*9,line)
             pdf.showPage()
         finally:
             image.close()
         progress()
     pdf.save()
-    output.chmod(0o600)
-    if not review.source_is_current(document_id):
-        output.unlink(missing_ok=True)
+    if isinstance(output,Path):
+        output.chmod(0o600)
+    if any(not review.source_is_current(document_id) for document_id in {key[0] for key in by_page}):
+        if isinstance(output,Path):
+            output.unlink(missing_ok=True)
         raise ProofError("source_changed")
+
+
+def write_redacted_pdf(review,document_id,pieces,output,progress=lambda:None,source_reference="filename"):
+    if any(piece["document_id"]!=document_id for piece in pieces):
+        raise ProofError("invalid_selection")
+    write_combined_pdf(review,pieces,output,progress,source_reference)
 
 
 class ProofService:
@@ -302,20 +353,35 @@ class ProofService:
             raise ProofError("too_many_pages")
         return pieces
 
-    def preview(self,ids,document_id,number):
+    def preview(self,ids,document_id,number,source_reference="filename"):
         pieces=self.selection(ids)
         selected=[p for p in pieces if p["document_id"]==document_id and p["page"]==number]
         if not selected:
             raise ProofError("page_not_selected")
-        image,_=render_redacted(self.review,document_id,number,selected,dpi=120)
-        try:
-            stream=io.BytesIO()
-            image.save(stream,format="PNG")
-            return stream.getvalue()
-        finally:
-            image.close()
+        stream=io.BytesIO()
+        write_combined_pdf(self.review,selected,stream,source_reference=source_reference,dpi=120)
+        with quiet_renderer(),pdfium.PdfDocument(stream.getvalue()) as document:
+            page=document[0]
+            try:
+                bitmap=page.render(scale=120/72,may_draw_forms=False)
+                try:
+                    image=bitmap.to_pil()
+                    try:
+                        output=io.BytesIO()
+                        image.save(output,format="PNG")
+                        return output.getvalue()
+                    finally:
+                        image.close()
+                finally:
+                    bitmap.close()
+            finally:
+                page.close()
 
-    def start_export(self,ids):
+    def start_export(self,ids,output_format="combined",source_reference="filename"):
+        if output_format not in ("combined","separate"):
+            raise ProofError("invalid_export_format")
+        if source_reference not in ("filename","neutral"):
+            raise ProofError("invalid_reference")
         pieces=self.selection(ids)
         with self.lock:
             if self.status["phase"]=="indexing" or self.export_status["phase"]=="exporting":
@@ -323,10 +389,10 @@ class ProofService:
             job=secrets.token_hex(12)
             pages=len({(p["document_id"],p["page"]) for p in pieces})
             self.export_status={"phase":"exporting","pages_done":0,"pages_total":pages,"files":[]}
-        threading.Thread(target=self._export,args=(job,pieces),daemon=True).start()
+        threading.Thread(target=self._export,args=(job,pieces,output_format,source_reference),daemon=True).start()
         return self.state()
 
-    def _export(self,job,pieces):
+    def _export(self,job,pieces,output_format,source_reference):
         folder=self.output_directory/job
         generated=[]
         try:
@@ -337,18 +403,26 @@ class ProofService:
             def progress():
                 with self.lock:
                     self.export_status["pages_done"]+=1
-            for document_id,document_pieces in by_document.items():
-                filename=f"nachweis-{document_id}.pdf"
-                target=folder/filename
+            if output_format=="combined":
+                target=folder/"zahlungsnachweise.pdf"
                 generated.append(target)
-                write_redacted_pdf(self.review,document_id,document_pieces,target,progress)
-            if len(generated)>1:
-                bundle=folder/"zahlungsnachweise.zip"
-                with zipfile.ZipFile(bundle,"w",compression=zipfile.ZIP_DEFLATED) as archive:
-                    for target in generated:
-                        archive.write(target,arcname=target.name)
-                bundle.chmod(0o600)
-                generated.append(bundle)
+                write_combined_pdf(self.review,pieces,target,progress,source_reference)
+            else:
+                for descriptor in self.review.documents:
+                    document_id=descriptor["document_id"]
+                    if document_id not in by_document:
+                        continue
+                    target=folder/f"nachweis-{document_id}.pdf"
+                    generated.append(target)
+                    write_redacted_pdf(self.review,document_id,by_document[document_id],target,progress,source_reference)
+                if len(generated)>1:
+                    bundle=folder/"zahlungsnachweise.zip"
+                    pdfs=list(generated)
+                    generated.append(bundle)
+                    with zipfile.ZipFile(bundle,"w",compression=zipfile.ZIP_DEFLATED) as archive:
+                        for target in pdfs:
+                            archive.write(target,arcname=target.name)
+                    bundle.chmod(0o600)
             with self.lock:
                 files=[]
                 for target in generated:
