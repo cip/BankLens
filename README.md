@@ -1,4 +1,4 @@
-# BankLens: lokale Feldwerkstatt fuer Kontoauszuege
+# BankLens: lokale Feldwerkstatt und Zahlungsnachweise
 
 BankLens lernt aus wenigen manuell bezeichneten Textstellen, welche Felder ein
 Bankauszug enthaelt und wie Buchungen aufgebaut sind. Die erste Anwendung sind
@@ -14,10 +14,9 @@ Empfaenger, Mandatsreferenz und andere Textdetails sind optionale, nachrangige
 Rollen. Zeichenfolgen wie `a/`, `?` oder Referenzpraefixe werden nicht gedeutet
 oder ersetzt. Die physische Buchung wird als Einheit behandelt.
 
-Der spaetere Nachweisablauf soll den ganzen Buchungstext durchsuchen, passende
-Buchungen erhalten und andere Buchungsbloecke schwaerzen. Suchfunktion,
-Nachweisauswahl, CSV-Ausgabe und echte PDF-Schwaerzung sind noch nicht
-implementiert. Die aktuelle Werkstatt liefert die Struktur dafuer.
+Der eigene Web-Modus **Zahlungsnachweise** durchsucht die Buchungen des
+konfigurierten Ordners, zeigt Treffer als Tabelle und erzeugt geschwaerzte
+PDF-Kopien. CSV-Ausgabe und feinere Kopfkonfiguration sind noch offen.
 
 ## Starten
 
@@ -28,6 +27,49 @@ sh tools/pdf-toolkit preview /absoluter/pfad/zum/testset
 Die ausgegebene lokale URL im Browser oeffnen. Der Starter nutzt den vorhandenen
 Codex-Python-Runtime. Alternativ Python 3.11+ mit `requirements.txt` verwenden:
 `python3 -m banklens_pdf preview ...`. Beenden mit Ctrl+C im Startterminal.
+
+## Zahlungsnachweise im Browser (POC ab v0.4.0)
+
+1. Oben **Zahlungsnachweise** waehlen und **Auszuege einlesen** starten. Die
+   Struktur wird aus gespeicherten Beispielen bzw. dem Bankprofil und den
+   aktuellen PDF-Seiten neu berechnet. Ohne Beispiele greifen bekannte
+   Spaltenkoepfe. Vorhandene Verwerfungen werden beruecksichtigt. Ungespeicherte
+   Aenderungen der Feldwerkstatt vorher speichern.
+2. Freitext eingeben. Alle Suchwoerter muessen innerhalb einer Buchung
+   vorkommen, verteilt ueber Buchungsdatum, Wertdatum, Betrag und gesamten
+   Buchungstext. Die Suche ignoriert Gross-/Kleinschreibung; Anfuehrungszeichen
+   suchen eine zusammenhaengende Phrase. Leere Suche zeigt alle Buchungen.
+   Nachgestellte Minuszeichen sowie Suchwerte wie `-18,00` funktionieren.
+3. Passende Treffer sind vorausgewaehlt und lassen sich einzeln abwaehlen.
+   Verknuepfte Fortsetzungen werden als eine Buchung mit mehreren Originalseiten
+   angezeigt und durchsucht. Ungeklaerte Fortsetzungen sind sichtbar, aber fuer
+   den Export gesperrt. Maximal 500 Treffer werden angezeigt; bei mehr Treffern
+   die Suche eingrenzen. Ein Export umfasst hoechstens 200 Seiten.
+4. **Schwaerzung in der Vorschau pruefen** zeigt ausschliesslich die maskierte
+   Fassung. Zwischen den ausgewaehlten Seiten wechseln und das Ergebnis pruefen.
+5. **Geschwaerzte PDFs erstellen** erzeugt eine PDF-Datei je Quelldokument und
+   bei mehreren Dokumenten zusaetzlich eine ZIP-Datei. Nur Seiten mit
+   ausgewaehlten Buchungen werden ausgegeben; Fortsetzungsseiten gehoeren dazu.
+
+Im POC bleibt der gesamte Kontokopf mit allen Kontoinhabern, Kontodaten und
+Auszugsangaben sichtbar. Die Auswahl einzelner Kontoinhaber folgt spaeter.
+Andere Buchungen, Summen und Salden unterhalb der Buchungstabelle werden
+geschwaerzt. Die Vorschau und die PDFs entstehen aus einer anfangs schwarzen
+Bildflaeche, auf die nur Kopf und ausgewaehlte Buchungsbereiche kopiert werden.
+Ist die Tabellengrenze nicht bekannt, bricht der Export ab.
+
+Die Kopie ist ein neues Bild-PDF: Originaltextschichten, Anhaenge, Formulare,
+Metadatenwerte und digitale Signaturen werden nicht uebernommen. Die Originale
+bleiben unveraendert. Die Lesbarkeit und Vollstaendigkeit haengen weiterhin
+von der Strukturerkennung ab; deshalb jede Kopie vor dem Weitergeben pruefen.
+Es gibt weder OCR noch eine automatische Zusicherung der Erkennungsqualitaet.
+
+Der Suchindex und die Auswahl bleiben im Arbeitsspeicher des lokalen Servers
+bzw. Browsers. Exportdateien liegen unter `output/pdf/<zufaellige-export-id>/`
+(Dateien `0600`, Exportordner `0700`) und sind von Git ausgeschlossen. Die
+Downloadlinks gelten fuer die laufende Serversitzung; die Dateien bleiben
+bis zum manuellen Loeschen auf der Platte. Neue oder geaenderte Originale
+erfordern einen Neustart des Toolkits und erneutes Einlesen.
 
 ## Beispiele geben und den Rest erkennen
 
@@ -93,7 +135,7 @@ Die Engine ist regelbasiert und lokal, ohne externes Modell:
 Originale bleiben ausserhalb des Projekts und werden nur lesend geoeffnet.
 Keine Originaltexte, Dateinamen oder Metadatenwerte erscheinen in CLI-Ausgaben
 oder Serverlogs. Nur der Browser des Benutzers erhaelt die Seitenbilder und
-den Originaltext der jeweils angezeigten Seite. Der Assistent ruft keine privaten Seiten- oder Textantworten ab. Eine lokale
+die lokal angefragten Seiten- bzw. Buchungstexte. Der Assistent ruft keine privaten Seiten- oder Textantworten ab. Eine lokale
 Diagnose darf PDFs und Zuordnungen im Toolkit verarbeiten und ausschliesslich
 die unten beschriebenen technischen Zaehler an den Chat zurueckgeben.
 
@@ -141,10 +183,9 @@ Quelldateien. Der UI-Test erwartet `tmp/demo-input/example.pdf`, erzeugbar mit
 - Verifizierte Bank-Austria-PDF-Spezifikation bzw. dokumentierte Sonderfaelle
   einarbeiten; siehe `docs/bank-format-sources.md`.
 - Weitere Layoutvarianten, OCR und mehrdeutige oder mehrseitige Fortsetzungen.
-- Zahlungsnachweissuche ueber den ganzen Buchungstext und passende Blockauswahl.
-- Strukturierter Import und Suche ueber alle Auszuege.
-- Synthetische Testauszuege und echte PDF-Anonymisierung mit separater
-  Nachpruefung. Die Feldwerkstatt exportiert bisher keine anonymisierten PDFs.
+- Konfigurierbarer Kontokopf, etwa einzelne Kontoinhaber und Kontodaten.
+- CSV-Ausgabe und strukturierter Import in andere Anwendungen.
+- Weitere synthetische Testauszuege und Nachpruefung der Erkennungsqualitaet.
 
 ## Querformat-Test der groben Strukturen
 
@@ -157,6 +198,12 @@ Dieses kuenstliche PDF prueft zwei Kontoinhaber, Zwei- und Vierzeilenbuchungen,
 Inline-Betraege, nachgestellte Minuszeichen, seitlichen Text und eine Buchung
 ueber zwei Seiten. Keine Werte aus dem bereitgestellten Screenshot werden als
 Testdaten uebernommen. Details zum Rollenmodell: `docs/coarse-structure.md`.
+
+`node tools/test_proof_ui.cjs` nutzt ausschliesslich Kopien dieses kuenstlichen
+Testdokuments fuer Suche, Auswahl, seitenuebergreifende Vorschau, PDF-/ZIP-Download
+und Moduswechsel. Die Python-Tests pruefen zusaetzlich schwarze Pixel ausserhalb
+der freigegebenen Bereiche, ausgeschlossene Fremdbuchungen und Salden sowie das
+Fehlen urspruenglicher Textschichten, Metadaten und Anhaenge in der Kopie.
 
 ## Versionen und Diagnose
 

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BankLens · Zahlungsnachweise</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="proof.css"><script src="proof.js" defer></script></head>
+<body>
+<header><a class="brand" href="./">◧ BankLens <span id="version">Lokaler POC</span></a><nav class="mode-nav"><a href="./">Feldwerkstatt</a><a href="proof.html" aria-current="page">Zahlungsnachweise</a></nav><span class="local"><i></i> Auf deinem Rechner</span></header>
+<main>
+  <section class="intro"><div class="eyebrow">ZAHLUNGSNACHWEISE · POC</div><h1>Die richtige Buchung. Als Nachweis.</h1><p>Alle Auszüge durchsuchen, passende Buchungen auswählen und geschwärzte Kopien herunterladen.</p></section>
+  <section class="search-card">
+    <div class="index-bar"><div><strong>1. Auszüge einlesen</strong><p id="index-status" role="status">Verbindung wird aufgebaut …</p></div><div><button id="index" class="secondary" disabled>Auszüge einlesen</button><button id="stop" class="secondary" hidden>Anhalten</button></div></div>
+    <progress id="index-progress" max="1" value="0" hidden></progress>
+    <form id="search-form"><label for="query">2. Buchungen filtern</label><div class="search-line"><input id="query" type="search" placeholder="Zum Beispiel: Musterarzt 03.08" maxlength="500" autocomplete="off" disabled><button id="search" class="primary" disabled>Suchen</button></div><p class="help">Alle Suchwörter müssen vorkommen, verteilt über beliebige Felder. Groß-/Kleinschreibung spielt keine Rolle. Mehrseitige Buchungen werden gemeinsam durchsucht. Leer lassen für alle Buchungen.</p></form>
+  </section>
+  <section class="results-card">
+    <div class="results-heading"><div><h2>Gefundene Buchungen</h2><p id="result-count" class="help">Lies zuerst die Auszüge ein.</p></div><label class="checkbox"><input id="select-all" type="checkbox" disabled>Alle Treffer auswählen</label></div>
+    <div class="table-scroll"><table id="results"><thead><tr><th><span class="sr-only">Auswahl</span></th><th>Auszug / Seiten</th><th>Buchungsdatum</th><th>Wertdatum</th><th>Gesamter Buchungstext</th><th class="amount">Betrag</th><th>Status</th></tr></thead><tbody id="result-rows"></tbody></table></div>
+    <p id="empty-results" class="empty-results">Deine Treffer erscheinen hier.</p>
+  </section>
+  <section class="export-area">
+    <div class="export-card"><div class="eyebrow">3. NACHWEIS ERSTELLEN</div><h2>Ausgewählte Buchungen erhalten.</h2><p id="selection-count">Noch keine Buchungen ausgewählt.</p><ul class="policy"><li>Kontokopf mit Namen und Kontodaten bleibt sichtbar.</li><li>Andere Buchungen und der Summenbereich werden geschwärzt.</li><li>Nur Seiten mit ausgewählten Buchungen werden exportiert; Fortsetzungen gehören dazu.</li></ul><button id="preview" class="secondary full" disabled>Schwärzung in der Vorschau prüfen</button><button id="export" class="primary full spaced" disabled>Geschwärzte PDFs erstellen</button><p class="help">Die Kopien sind Bild-PDFs. Originale werden nicht verändert; ihre digitale Signatur wird nicht übernommen.</p><progress id="export-progress" max="1" value="0" hidden></progress><p id="export-status" role="status"></p><div id="downloads"></div></div>
+    <div class="preview-card"><div class="preview-heading"><h2>Geschwärzte Vorschau</h2><label class="sr-only" for="preview-page">Vorschauseite</label><select id="preview-page" disabled><option value="">Seite wählen</option></select></div><p id="preview-hint" class="help">Prüfe die fertige Schwärzung vor dem Weitergeben. Die Vorschau zeigt ausschließlich die geschwärzte Fassung.</p><img id="preview-image" alt="Vorschau der geschwärzten PDF-Kopie" hidden></div>
+  </section>
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+</body></html>

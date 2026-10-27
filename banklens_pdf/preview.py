@@ -1,7 +1,7 @@
 """Loopback-only review UI. Original pages are for the user's eyes only.
 
-This module never exports a PDF. Images are rendered in memory, served with
-no-store headers, and never written to the workspace. Plans remain private.
+Page previews stay in memory. The separate proof mode creates sanitized copies
+only after selection. Original images and document strings are never logged.
 """
 
 from __future__ import annotations
@@ -85,11 +85,14 @@ class Review:
         self.workspace_path = state_directory / f"field-workspace-{set_key}.json"
         self.profile_path = state_directory / "field-profile.json"
 
-    @lru_cache(maxsize=8)
     def text_layout(self, document_id, number):
         descriptor = next(d for d in self.documents if d["document_id"] == document_id)
         if type(number) is not int or not 1 <= number <= descriptor["page_count"] or not self.source_is_current(document_id):
             raise ValueError("page_unavailable")
+        return self._cached_text_layout(document_id,number)
+
+    @lru_cache(maxsize=8)
+    def _cached_text_layout(self, document_id, number):
         with quiet_renderer(), pdfium.PdfDocument(str(self.paths[document_id])) as document:
             page = document[number-1]
             try:
@@ -384,6 +387,15 @@ def make_server(review: Review, port=0, token=None):
     if not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",token):
         raise ValueError("invalid_session_token")
     prefix = f"/{token}/"
+    proof_service=None
+    proof_lock=threading.Lock()
+    def proofs():
+        nonlocal proof_service
+        with proof_lock:
+            if proof_service is None:
+                from .proof import ProofService
+                proof_service=ProofService(review)
+        return proof_service
 
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
@@ -397,14 +409,16 @@ def make_server(review: Review, port=0, token=None):
         def send_error(self, code, message=None, explain=None):
             self.respond(code, b'{"error":"request_failed"}', "application/json")
 
-        def respond(self, status, body, mime):
+        def respond(self, status, body, mime, filename=None):
             self.send_response(status)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+            if filename:
+                self.send_header("Content-Disposition",f'attachment; filename="{filename}"')
+            self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
             self.end_headers()
             self.wfile.write(body)
 
@@ -421,7 +435,10 @@ def make_server(review: Review, port=0, token=None):
                 route = self.path[len(prefix):]
                 assets = {"": ("index.html", "text/html; charset=utf-8"),
                           "app.js": ("app.js", "text/javascript; charset=utf-8"),
-                          "style.css": ("style.css", "text/css; charset=utf-8")}
+                          "style.css": ("style.css", "text/css; charset=utf-8"),
+                          "proof.html":("proof.html","text/html; charset=utf-8"),
+                          "proof.js":("proof.js","text/javascript; charset=utf-8"),
+                          "proof.css":("proof.css","text/css; charset=utf-8")}
                 if route in assets:
                     name, mime = assets[route]
                     return self.respond(200, (WEB / name).read_bytes(), mime)
@@ -436,6 +453,12 @@ def make_server(review: Review, port=0, token=None):
                         "app_version":APP_VERSION,"api_version":API_VERSION,"recognition_revision":RECOGNITION_REVISION})
                 if route == "api/profile":
                     return self.json_response(200,review.load_profile())
+                if route=="api/proof/status":
+                    return self.json_response(200,proofs().state())
+                if route.startswith("api/proof/download/"):
+                    target=proofs().download(route[len("api/proof/download/"):])
+                    mime="application/zip" if target.suffix==".zip" else "application/pdf"
+                    return self.respond(200,target.read_bytes(),mime,target.name)
                 parts = route.split("/")
                 if len(parts)==4 and parts[:2]==["api","text"] and parts[3].endswith(".json"):
                     return self.json_response(200,review.text_layout(parts[2],int(parts[3][:-5])))
@@ -451,7 +474,8 @@ def make_server(review: Review, port=0, token=None):
         def do_POST(self):
             try:
                 origin = f"http://127.0.0.1:{self.server.server_port}"
-                routes = {prefix+"api/plan",prefix+"api/workspace",prefix+"api/learn",prefix+"api/recognize",prefix+"api/block"}
+                proof_routes={prefix+"api/proof/"+suffix for suffix in ("index","cancel","search","preview","export")}
+                routes = {prefix+"api/plan",prefix+"api/workspace",prefix+"api/learn",prefix+"api/recognize",prefix+"api/block"}|proof_routes
                 if not self.allowed() or self.path not in routes or self.headers.get("Origin") != origin or self.headers.get("X-BankLens-Request") != "1":
                     return self.send_error(403)
                 size = int(self.headers.get("Content-Length", "0"))
@@ -460,6 +484,22 @@ def make_server(review: Review, port=0, token=None):
                 if self.headers.get("Content-Type") != "application/json":
                     return self.send_error(415)
                 payload = json.loads(self.rfile.read(size))
+                if self.path in proof_routes:
+                    from .proof import ProofError
+                    try:
+                        service=proofs()
+                        if self.path.endswith("/index"):
+                            return self.json_response(200,service.start_index())
+                        if self.path.endswith("/cancel"):
+                            service.cancel.set()
+                            return self.json_response(200,{"cancel_requested":True})
+                        if self.path.endswith("/search"):
+                            return self.json_response(200,service.search(payload.get("query","")))
+                        if self.path.endswith("/preview"):
+                            return self.respond(200,service.preview(payload.get("selected_ids"),payload.get("document_id"),payload.get("page")),"image/png")
+                        return self.json_response(200,service.start_export(payload.get("selected_ids")))
+                    except ProofError as error:
+                        return self.json_response(400,{"error":str(error)})
                 if self.path == prefix+"api/workspace":
                     return self.json_response(200,review.save_workspace(payload))
                 if self.path == prefix+"api/learn":
