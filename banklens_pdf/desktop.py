@@ -25,7 +25,8 @@ def run(webview):
         except Exception:
             raise DirectoryError("directory_picker_unavailable") from None
 
-    server, url = make_server(None, state_directory=state, directory_picker=pick_directory)
+    server, url = make_server(None, state_directory=state, directory_picker=pick_directory,
+                              output_directory=state / "exports")
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     try:

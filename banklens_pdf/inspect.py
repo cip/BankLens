@@ -18,6 +18,8 @@ import warnings
 
 from pypdf import PdfReader
 
+from .private_files import create_private
+
 
 @contextlib.contextmanager
 def quiet_parser():
@@ -104,7 +106,7 @@ def write_report(report_path: Path, input_directory: Path, report: dict) -> None
     target.parent.mkdir(parents=True, exist_ok=True)
     # Exclusive creation prevents overwriting any existing file. Remove a
     # partially written report if serialization/write fails.
-    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    fd = create_private(target)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as output:
             output.write(payload)

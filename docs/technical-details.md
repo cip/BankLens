@@ -191,8 +191,9 @@ externen Skripte, Schriften oder Dienste. Seitenbilder und Textlayouts bleiben
 im Arbeitsspeicher; HTTP-Antworten verwenden `no-store`.
 
 Unter `private/review/` werden auf POSIX-Systemen mit Dateirechten `0600`
-gespeichert. Windows verwendet stattdessen die geerbten Zugriffslisten des
-Zielordners; ein gleichwertiger Schutz ist bisher nicht nachgewiesen:
+gespeichert. Unter Windows werden die Dateien mit einer geschützten ACL für den
+Dateieigentümer, SYSTEM und Administratoren angelegt. Ohne unterstützte ACL
+schlägt das Anlegen fehl; bereits vorhandene Dateien werden nicht überschrieben:
 
 - `field-profile.json`: bisheriges Einzelprofil, weiterhin lesbar; wird von
   neuen Speichervorgängen nicht überschrieben.

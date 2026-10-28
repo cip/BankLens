@@ -6,7 +6,7 @@ import tempfile
 import threading
 import unittest
 
-from banklens_pdf.preview import DirectoryError, Review, make_server, open_directory
+from banklens_pdf.preview import DirectoryError, Review, ReviewSession, make_server, open_directory
 from test_proof import artificial_pdf
 
 
@@ -39,6 +39,15 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(opened.documents[0]["page_count"],3)
         self.assertEqual(list(opened.paths.values()),[self.second/"input.PDF"])
         self.assertFalse(self.state.exists())
+
+    def test_session_uses_explicit_output_directory_and_rejects_source_overlap(self):
+        output = self.state / "exports"
+        for source in (self.source, self.second):
+            review = Review(source, self.state)
+            session = ReviewSession(review, "synthetic-token", output_directory=output)
+            self.assertEqual(session.proofs().output_directory, output.resolve())
+            with self.assertRaises(ValueError):
+                ReviewSession(review, "synthetic-token", output_directory=source / "exports").proofs()
 
     def test_bad_paths_have_fixed_errors_and_no_private_strings(self):
         empty=self.root/"empty"

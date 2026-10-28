@@ -31,6 +31,7 @@ from reportlab.pdfgen import canvas
 
 from .fields import bounds, recognize_page, summary_boundary, table_context
 from .preview import quiet_renderer
+from .private_files import create_private
 
 
 class ProofError(ValueError):
@@ -394,6 +395,16 @@ def render_redacted(review,document_id,number,pieces,dpi=180,redaction_fields=No
 
 def write_combined_pdf(review,pieces,output,progress=lambda:None,source_reference="filename",dpi=180,repo_url=None,
                        redaction_fields=None,profile=None,workspace=None):
+    if isinstance(output, Path):
+        fd = create_private(output)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                write_combined_pdf(review, pieces, stream, progress, source_reference, dpi, repo_url,
+                                   redaction_fields, profile, workspace)
+        except BaseException:
+            output.unlink(missing_ok=True)
+            raise
+        return
     if source_reference not in ("filename","neutral"):
         raise ProofError("invalid_reference")
     repo_url=repository_link(repo_url)
@@ -601,26 +612,31 @@ class ProofService:
                     self.export_status["pages_done"]+=1
             if output_format=="combined":
                 target=folder/"zahlungsnachweise.pdf"
-                generated.append(target)
                 write_combined_pdf(self.review,pieces,target,progress,source_reference,repo_url=self.repo_url,
                                    redaction_fields=redaction_fields,profile=profile,workspace=workspace)
+                generated.append(target)
             else:
                 for descriptor in self.review.documents:
                     document_id=descriptor["document_id"]
                     if document_id not in by_document:
                         continue
                     target=folder/f"nachweis-{document_id}.pdf"
-                    generated.append(target)
                     write_redacted_pdf(self.review,document_id,by_document[document_id],target,progress,source_reference,self.repo_url,
                                        redaction_fields,profile,workspace)
+                    generated.append(target)
                 if len(generated)>1:
                     bundle=folder/"zahlungsnachweise.zip"
                     pdfs=list(generated)
+                    fd = create_private(bundle)
+                    try:
+                        with os.fdopen(fd, "wb") as stream:
+                            with zipfile.ZipFile(stream,"w",compression=zipfile.ZIP_DEFLATED) as archive:
+                                for target in pdfs:
+                                    archive.write(target,arcname=target.name)
+                    except BaseException:
+                        bundle.unlink(missing_ok=True)
+                        raise
                     generated.append(bundle)
-                    with zipfile.ZipFile(bundle,"w",compression=zipfile.ZIP_DEFLATED) as archive:
-                        for target in pdfs:
-                            archive.write(target,arcname=target.name)
-                    bundle.chmod(0o600)
             with self.lock:
                 files=[]
                 for target in generated:

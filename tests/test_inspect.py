@@ -1,3 +1,4 @@
+from permissions import assert_private
 import contextlib
 import io
 import json
@@ -79,7 +80,7 @@ class InspectTests(unittest.TestCase):
                 write_report(source / "report.json", source, {})
             target = Path(folder) / "report.json"
             write_report(target, source, {"safe": True})
-            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+            assert_private(self, target)
             with self.assertRaises(ValueError):
                 write_report(target, source, {})
             self.assertEqual(json.loads(target.read_text()), {"safe": True})

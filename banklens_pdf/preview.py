@@ -17,7 +17,6 @@ from pathlib import Path
 import secrets
 import subprocess
 import sys
-import tempfile
 from functools import lru_cache
 from bisect import bisect_right
 import re
@@ -29,6 +28,9 @@ from .inspect import quiet_parser
 from .fields import FIELDS, compile_profile, extract_layout, recognize_page, transaction_blocks, block_body_tokens, repair_missing_parents
 from .version import APP_VERSION, API_VERSION, RECOGNITION_REVISION
 from .profiles import ProfileStore, read_json
+
+
+from .private_files import private_temporary
 
 
 WEB = Path(__file__).with_name("web")
@@ -236,7 +238,7 @@ class Review:
         if len(data) > MAX_BODY:
             raise ValueError("workspace_too_large")
         self.state_directory.mkdir(mode=0o700,parents=True,exist_ok=True)
-        fd,name = tempfile.mkstemp(prefix=".fields-",dir=self.state_directory)
+        fd,name = private_temporary(self.state_directory, ".fields-")
         temporary = Path(name)
         try:
             with os.fdopen(fd,"wb") as stream:
@@ -404,7 +406,7 @@ class Review:
         if len(data) > MAX_BODY:
             raise ValueError("plan_too_large")
         self.state_directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-        fd, name = tempfile.mkstemp(prefix=".plan-", dir=self.state_directory)
+        fd, name = private_temporary(self.state_directory, ".plan-")
         temporary = Path(name)
         try:
             with os.fdopen(fd, "wb") as stream:
@@ -481,10 +483,11 @@ def open_directory(value, state_directory):
 
 class ReviewSession:
     """Each opened folder has its own URLs, review and in-memory proof index."""
-    def __init__(self,review,token,state_directory=None):
+    def __init__(self,review,token,state_directory=None,output_directory=None):
         self.review=review
         self.state_directory=getattr(review,"state_directory",None) if review is not None else Path(state_directory).resolve()
         self.prefix=f"/{token}/"
+        self.output_directory=output_directory
         self.proof_service=None
         self.proof_lock=threading.Lock()
 
@@ -492,7 +495,7 @@ class ReviewSession:
         with self.proof_lock:
             if self.proof_service is None:
                 from .proof import ProofService
-                self.proof_service=ProofService(self.review)
+                self.proof_service=ProofService(self.review, **({"output_directory": self.output_directory} if self.output_directory is not None else {}))
         return self.proof_service
 
     def source(self):
@@ -502,17 +505,17 @@ class ReviewSession:
                 "page_count":sum(d["page_count"] for d in self.review.documents)}
 
 
-def make_server(review: Review | None, port=0, token=None,restored_reviews=None,state_directory=None, directory_picker=None):
+def make_server(review: Review | None, port=0, token=None,restored_reviews=None,state_directory=None, directory_picker=None, output_directory=None):
     token = token or secrets.token_urlsafe(32)
     if not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",token):
         raise ValueError("invalid_session_token")
     prefix = f"/{token}/"
-    sessions={token:ReviewSession(review,token,state_directory)}
+    sessions={token:ReviewSession(review,token,state_directory,output_directory)}
     # A local restart can retain open folder URLs without exposing their paths.
     for restored_token,restored_review in (restored_reviews or {}).items():
         if restored_token==token or not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",restored_token):
             raise ValueError("invalid_session_token")
-        sessions[restored_token]=ReviewSession(restored_review,restored_token)
+        sessions[restored_token]=ReviewSession(restored_review,restored_token,output_directory=output_directory)
     sessions_lock=threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
@@ -650,7 +653,7 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                                 raise DirectoryError("too_many_directories")
                         opened=open_directory(payload.get("directory"),session.state_directory)
                         opened_token=secrets.token_urlsafe(32)
-                        opened_session=ReviewSession(opened,opened_token)
+                        opened_session=ReviewSession(opened,opened_token,output_directory=output_directory)
                         with sessions_lock:
                             if len(sessions)>=64:
                                 raise DirectoryError("too_many_directories")

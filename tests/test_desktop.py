@@ -50,6 +50,7 @@ class DesktopTests(unittest.TestCase):
             desktop.run(view)
         self.assertTrue(server.stopped and server.closed)
         self.assertEqual(captured['directory_picker'](), 'C:/synthetic')
+        self.assertEqual(captured['output_directory'], captured['state_directory'] / 'exports')
         self.assertEqual(view.options['gui'], 'edgechromium')
         self.assertFalse(view.settings['ALLOW_FILE_URLS'])
 
