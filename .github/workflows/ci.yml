@@ -61,6 +61,7 @@ jobs:
           python -m pip install -r requirements.txt
           python -m unittest discover -s tests -v
       - name: Build installer
+        if: ${{ !cancelled() }}
         shell: pwsh
         run: |
           $env:PATH += ';C:\Program Files (x86)\NSIS'
