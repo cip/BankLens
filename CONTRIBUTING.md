@@ -62,3 +62,9 @@ Arbeitsstaende und lokale Beispieldateien gehoeren nicht in Commits.
 
 Details zu Erkennung, Speicherung, Konfiguration und Diagnose stehen in der
 [technischen Dokumentation](docs/technical-details.md).
+
+## GitHub Actions
+
+Bei Pull Requests gegen `main` und Pushes auf `main` führt die CI die
+Python-Tests und die drei Browser-Tests mit künstlichen PDFs aus. Beide Jobs
+müssen erfolgreich sein; ein lokaler Testlauf ersetzt nicht deren Ergebnis.
