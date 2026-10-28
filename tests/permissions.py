@@ -9,6 +9,7 @@ def assert_private(test, path):
         test.assertEqual(path.stat().st_mode & 0o777, 0o600)
         return
     script = r'''
+      $ErrorActionPreference = 'Stop'
       $acl = Get-Acl -LiteralPath $env:BANKLENS_TEST_FILE
       $rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | ForEach-Object {
         @{ sid=$_.IdentityReference.Value; type=$_.AccessControlType.ToString();
