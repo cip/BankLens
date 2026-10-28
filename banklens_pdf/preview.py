@@ -28,6 +28,7 @@ import pypdfium2 as pdfium
 from .inspect import quiet_parser
 from .fields import FIELDS, compile_profile, extract_layout, recognize_page, transaction_blocks, block_body_tokens, repair_missing_parents
 from .version import APP_VERSION, API_VERSION, RECOGNITION_REVISION
+from .profiles import ProfileStore, read_json
 
 
 WEB = Path(__file__).with_name("web")
@@ -87,6 +88,26 @@ class Review:
         set_key = hashlib.sha256("".join(d["source_sha256"] for d in self.documents).encode()).hexdigest()[:24]
         self.workspace_path = state_directory / f"field-workspace-{set_key}.json"
         self.profile_path = state_directory / "field-profile.json"
+        self.selection_path = state_directory / f"profile-selection-{set_key}.json"
+        self.profiles = ProfileStore(self)
+        self.selected_profile = 'examples'
+        if self.selection_path.exists():
+            selection = read_json(self.selection_path)
+            if selection.get('schema_version') != 1:
+                raise ValueError('invalid_profile_selection')
+            self.selected_profile = selection['reference']
+            self.profiles.load(self.selected_profile)
+        elif self.workspace_path.exists() and any(a['kind']=='example' for d in self.load_workspace()['documents'] for a in d['annotations']):
+            self.selected_profile = 'examples'
+        elif self.profile_path.exists():
+            self.selected_profile = 'legacy'
+        else:
+            self.selected_profile = 'bundled:bank-austria:1'
+
+    def persist_profile_selection(self, reference):
+        self.profiles.load(reference)
+        self.private_write(self.selection_path, {'schema_version': 1, 'reference': reference})
+        self.selected_profile = reference
 
     def text_layout(self, document_id, number):
         descriptor = next(d for d in self.documents if d["document_id"] == document_id)
@@ -151,6 +172,11 @@ class Review:
                     if not isinstance(revision,str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}",revision):
                         raise ValueError("invalid_revision")
                     target["recognition_revision"]=revision
+                profile_digest=annotation.get("profile_sha256")
+                if profile_digest is not None:
+                    if not isinstance(profile_digest,str) or not re.fullmatch(r"[a-f0-9]{64}",profile_digest):
+                        raise ValueError("invalid_profile_digest")
+                    target["profile_sha256"]=profile_digest
                 entity=annotation.get("entity_id")
                 if entity is not None:
                     if not isinstance(entity,str) or not re.fullmatch(r"holder-[1-9][0-9]?",entity):
@@ -205,7 +231,7 @@ class Review:
                     annotation["token_ids"]=sorted(set(mapped))
         return workspace
 
-    def private_write(self, path, payload):
+    def private_write(self, path, payload, *, overwrite=True):
         data = json.dumps(payload,ensure_ascii=True,indent=2).encode("utf-8")
         if len(data) > MAX_BODY:
             raise ValueError("workspace_too_large")
@@ -215,7 +241,11 @@ class Review:
         try:
             with os.fdopen(fd,"wb") as stream:
                 stream.write(data)
-            os.replace(temporary,path)
+            if overwrite:
+                os.replace(temporary,path)
+            else:
+                # Publish a complete revision only if its name is still unused.
+                os.link(temporary,path)
         finally:
             temporary.unlink(missing_ok=True)
 
@@ -232,10 +262,12 @@ class Review:
         profile = self.learn(clean)
         self.private_write(self.workspace_path,clean)
         if profile["header_rules"] or profile["anchors"] or profile.get("auto_table"):
-            self.private_write(self.profile_path,profile)
+            self.profiles.save(profile)
         return {"saved":True,"anonymization_performed":False,
                 "repaired_parent_links":repaired,
-                "profile_updated":bool(profile["header_rules"] or profile["anchors"] or profile.get("auto_table"))}
+                "profile_updated":bool(profile["header_rules"] or profile["anchors"] or profile.get("auto_table")),
+                "selected_profile":self.selected_profile,
+                "profile_sha256":self.profiles.metadata(self.selected_profile)["sha256"]}
 
     def validate_profile(self, profile):
         if not isinstance(profile,dict) or profile.get("schema_version") != 1 or profile.get("engine") not in ("layout-examples-v1","layout-examples-v2"):
@@ -276,9 +308,7 @@ class Review:
         return profile
 
     def load_profile(self):
-        if self.profile_path.is_symlink() or self.profile_path.stat().st_size > MAX_BODY:
-            raise ValueError("invalid_profile")
-        return self.validate_profile(json.loads(self.profile_path.read_text(encoding="utf-8")))
+        return self.profiles.load(self.selected_profile)
 
     def public_documents(self):
         return [{"document_id": d["document_id"], "page_count": d["page_count"]}
@@ -535,6 +565,7 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                           "proof.html":("proof.html","text/html; charset=utf-8"),
                           "proof.js":("proof.js","text/javascript; charset=utf-8"),
                           "proof.css":("proof.css","text/css; charset=utf-8")}
+                assets["profiles.js"]=("profiles.js","text/javascript; charset=utf-8")
                 assets["source.js"]=("source.js","text/javascript; charset=utf-8")
                 if route in assets:
                     name, mime = assets[route]
@@ -557,8 +588,11 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                 if route == "api/workspace":
                     return self.json_response(200, review.load_workspace())
                 if route == "api/config":
-                    return self.json_response(200,{"fields":FIELDS,"profile_available":review.profile_path.is_file(),
-                        "app_version":APP_VERSION,"api_version":API_VERSION,"recognition_revision":RECOGNITION_REVISION})
+                    return self.json_response(200,{"fields":FIELDS,"profile_available":True,
+                        "app_version":APP_VERSION,"api_version":API_VERSION,"recognition_revision":RECOGNITION_REVISION,
+                        "profile_sha256":review.profiles.metadata(review.selected_profile)["sha256"]})
+                if route == "api/profiles":
+                    return self.json_response(200,review.profiles.catalog())
                 if route == "api/profile":
                     return self.json_response(200,review.load_profile())
                 if route=="api/proof/status":
@@ -587,7 +621,7 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                 review,prefix,proofs=session.review,session.prefix,session.proofs
                 origin = f"http://127.0.0.1:{self.server.server_port}"
                 proof_routes={prefix+"api/proof/"+suffix for suffix in ("index","cancel","search","preview","export")}
-                routes = {prefix+"api/plan",prefix+"api/workspace",prefix+"api/learn",prefix+"api/recognize",prefix+"api/block",prefix+"api/source/load",prefix+"api/source/pick"}|proof_routes
+                routes = {prefix+"api/plan",prefix+"api/workspace",prefix+"api/learn",prefix+"api/recognize",prefix+"api/block",prefix+"api/source/load",prefix+"api/source/pick",prefix+"api/profile/select"}|proof_routes
                 if self.path not in routes or self.headers.get("Origin") != origin or self.headers.get("X-BankLens-Request") != "1":
                     return self.send_error(403)
                 size = int(self.headers.get("Content-Length", "0"))
@@ -626,6 +660,20 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                         return self.json_response(400,{"error":str(error)})
                 if review is None:
                     return self.json_response(409,{"error":"no_directory"})
+                if self.path == prefix+"api/profile/select":
+                    if not isinstance(payload,dict):
+                        raise ValueError('invalid_profile_reference')
+                    reference=payload.get('reference')
+                    review.profiles.load(reference)
+                    with sessions_lock:
+                        if len(sessions)>=64:
+                            raise ValueError('too_many_directories')
+                        opened=Review(review.directory,review.state_directory)
+                        opened.persist_profile_selection(reference)
+                        opened_token=secrets.token_urlsafe(32)
+                        opened_session=ReviewSession(opened,opened_token)
+                        sessions[opened_token]=opened_session
+                    return self.json_response(200,{'session_path':opened_session.prefix})
                 if self.path in proof_routes:
                     from .proof import ProofError
                     try:
@@ -670,7 +718,12 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                     previous=payload.get("previous")
                     if previous is not None and (not isinstance(previous,dict) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}",str(previous.get("id",""))) or previous.get("family") not in ("card","direct_debit","transfer","generic") or number<=1):
                         raise ValueError("invalid_previous_block")
-                    return self.json_response(200,recognize_page(profile,review.text_layout(document_id,number),document_id,existing,previous))
+                    result=recognize_page(profile,review.text_layout(document_id,number),document_id,existing,previous)
+                    digest=review.profiles.metadata(review.selected_profile,profile)["sha256"]
+                    for suggestion in result["suggestions"]:
+                        suggestion["profile_sha256"]=digest
+                    result["profile_sha256"]=digest
+                    return self.json_response(200,result)
                 count = review.save(payload)
                 self.json_response(200, {"saved": True, "region_count": count,
                                           "anonymization_performed": False})

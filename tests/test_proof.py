@@ -337,6 +337,8 @@ class ProofTests(unittest.TestCase):
             (self.source/filename).rename(self.original)
 
     def test_asynchronous_service_export_and_selection_validation(self):
+        # Explicitly select the untrained synthetic workspace to test unavailable fields.
+        self.review.selected_profile='examples'
         service=ProofService(self.review,self.root/"exports")
         with self.assertRaises(ProofError) as error:
             service.selected_redaction_fields(["owner-1"])

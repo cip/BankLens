@@ -1,0 +1,359 @@
+{
+  "catalog_schema_version": 1,
+  "id": "bank-austria",
+  "revision": 1,
+  "profile": {
+    "schema_version": 1,
+    "engine": "layout-examples-v2",
+    "profile_name": "Bank Austria",
+    "recognition_revision": "booking-blocks-4",
+    "auto_table": true,
+    "amount_terminal": true,
+    "row_requires_amount": true,
+    "amount_column": [
+      0.9020909863610058,
+      1
+    ],
+    "value_column": [
+      0.7257070871475169,
+      0.7887676981402567
+    ],
+    "anchors": [
+      {
+        "column": [
+          0.12669696044921874,
+          0.18575757144195865
+        ],
+        "value_type": "date"
+      }
+    ],
+    "header_rules": [
+      {
+        "box": [
+          0.13460604991977063,
+          0.6380937629275851,
+          0.17021215162694656,
+          0.029687484105428097
+        ],
+        "field": "owner.name",
+        "value_type": "text",
+        "page_scope": "first",
+        "entity_id": "holder-1"
+      },
+      {
+        "box": [
+          0.13436363040397464,
+          0.7219374974568685,
+          0.07950001212482902,
+          0.025312503178914314
+        ],
+        "field": "owner.address.line2",
+        "value_type": "text",
+        "page_scope": "first"
+      },
+      {
+        "box": [
+          0.13504544653073705,
+          0.6799478795793321,
+          0.1424394344239925,
+          0.029499981138441322
+        ],
+        "field": "owner.address.line1",
+        "value_type": "text",
+        "page_scope": "first"
+      },
+      {
+        "box": [
+          0.8478232232809869,
+          0.21015622880723742,
+          0.1149545791574601,
+          0.024593777126736105
+        ],
+        "field": "account.number",
+        "value_type": "text",
+        "page_scope": "first"
+      },
+      {
+        "box": [
+          0.13460604991977063,
+          0.17246871524386936,
+          0.17021215162694656,
+          0.029687510596381278
+        ],
+        "field": "owner.name",
+        "value_type": "text",
+        "page_scope": "following",
+        "entity_id": "holder-1"
+      },
+      {
+        "box": [
+          0.1344242417049729,
+          0.2106562720404731,
+          0.20681823062575627,
+          0.02412499321831596
+        ],
+        "field": "owner.name",
+        "value_type": "text",
+        "page_scope": "following",
+        "entity_id": "holder-2"
+      },
+      {
+        "box": [
+          0.5404090752906671,
+          0.21015622880723742,
+          0.08856062455610803,
+          0.024593777126736105
+        ],
+        "field": "statement.date",
+        "value_type": "date",
+        "page_scope": "following"
+      },
+      {
+        "box": [
+          0.7400757760712595,
+          0.2646457884046767,
+          0.216136123194839,
+          0.02531252966986758
+        ],
+        "field": "account.iban",
+        "value_type": "iban",
+        "page_scope": "following"
+      },
+      {
+        "box": [
+          0.8412575256142151,
+          0.21015622880723742,
+          0.11495437365188343,
+          0.024593777126736105
+        ],
+        "field": "account.number",
+        "value_type": "text",
+        "page_scope": "following"
+      }
+    ],
+    "row_rules": [
+      {
+        "box": [
+          0.13469696044921875,
+          0.3726562394036187,
+          0.8293940226236979,
+          0.06528128517998588
+        ],
+        "column": [
+          0.12869696044921874,
+          0.9760909830729166
+        ],
+        "dy": [
+          -0.0005625089009603235,
+          0.06471877627902556
+        ],
+        "line_offset": 0,
+        "line_count": 2,
+        "field": "transaction.row",
+        "value_type": "text",
+        "page_scope": "following",
+        "family": "card"
+      },
+      {
+        "box": [
+          0.13469696044921875,
+          0.44765620761447483,
+          0.8293940226236979,
+          0.06319798363579648
+        ],
+        "column": [
+          0.12869696044921874,
+          0.9760909830729166
+        ],
+        "dy": [
+          -0.000562508900960268,
+          0.06263547473483622
+        ],
+        "line_offset": 0,
+        "line_count": 2,
+        "field": "transaction.row",
+        "value_type": "text",
+        "page_scope": "following",
+        "family": "card"
+      }
+    ],
+    "transaction_rules": [
+      {
+        "box": [
+          0.9225757740162037,
+          0.41071875890096027,
+          0.04151520905671291,
+          0.027218765682644308
+        ],
+        "column": [
+          0.9165757740162037,
+          0.9760909830729166
+        ],
+        "dy": [
+          0.03750001059638125,
+          0.06471877627902556
+        ],
+        "line_offset": 1,
+        "line_count": 1,
+        "field": "transaction.amount",
+        "value_type": "amount",
+        "page_scope": "following",
+        "family": "card"
+      },
+      {
+        "box": [
+          0.9220909863610058,
+          0.4830729166666667,
+          0.04199999671191079,
+          0.02778127458360463
+        ],
+        "column": [
+          0.9160909863610058,
+          0.9760909830729166
+        ],
+        "dy": [
+          0.034854200151231585,
+          0.06263547473483622
+        ],
+        "line_offset": 1,
+        "line_count": 1,
+        "field": "transaction.amount",
+        "value_type": "amount",
+        "page_scope": "following",
+        "family": "card"
+      },
+      {
+        "box": [
+          0.9225303572837753,
+          0.7034270498487685,
+          0.041560625789141326,
+          0.027218765682644253
+        ],
+        "column": [
+          0.9165303572837753,
+          0.9760909830729166
+        ],
+        "dy": [
+          0.11041662428114152,
+          0.13763538996378577
+        ],
+        "line_offset": 3,
+        "line_count": 1,
+        "field": "transaction.amount",
+        "value_type": "amount",
+        "page_scope": "following",
+        "family": "direct_debit"
+      },
+      {
+        "box": [
+          0.7357070871475169,
+          0.7034270498487685,
+          0.043060610992739834,
+          0.024031268225775837
+        ],
+        "column": [
+          0.7297070871475169,
+          0.7907676981402567
+        ],
+        "dy": [
+          0.11041662428114152,
+          0.13444789250691735
+        ],
+        "line_offset": 3,
+        "line_count": 1,
+        "field": "transaction.value_date",
+        "value_type": "date",
+        "page_scope": "following",
+        "family": "direct_debit"
+      },
+      {
+        "box": [
+          0,
+          0.5917291906144884,
+          0.5960503266716646,
+          0.1371666325463189
+        ],
+        "column": [
+          0,
+          0.7277070871475169
+        ],
+        "dy": [
+          -0.001281234953138588,
+          0.1358853975931803
+        ],
+        "line_offset": 0,
+        "line_count": 4,
+        "field": "transaction.description",
+        "value_type": "text",
+        "page_scope": "following",
+        "family": "direct_debit"
+      },
+      {
+        "box": [
+          0.7357070871475169,
+          0.5555103619893392,
+          0.043060610992739834,
+          0.024031268225775837
+        ],
+        "column": [
+          0.7297070871475169,
+          0.7907676981402567
+        ],
+        "dy": [
+          0.0343749788072375,
+          0.05840624703301334
+        ],
+        "line_offset": 1,
+        "line_count": 1,
+        "field": "transaction.value_date",
+        "value_type": "date",
+        "page_scope": "following",
+        "family": "card"
+      },
+      {
+        "box": [
+          0.7357070871475169,
+          0.7763437694973416,
+          0.043060610992739834,
+          0.024031241734822517
+        ],
+        "column": [
+          0.7297070871475169,
+          0.7907676981402567
+        ],
+        "dy": [
+          0.037500010596381306,
+          0.06153125233120382
+        ],
+        "line_offset": 1,
+        "line_count": 1,
+        "field": "transaction.value_date",
+        "value_type": "date",
+        "page_scope": "following",
+        "family": "card"
+      },
+      {
+        "box": [
+          0.9225303572837753,
+          0.5555103619893392,
+          0.041560625789141326,
+          0.027218765682644253
+        ],
+        "column": [
+          0.9165303572837753,
+          0.9760909830729166
+        ],
+        "dy": [
+          0.0343749788072375,
+          0.06159374448988175
+        ],
+        "line_offset": 1,
+        "line_count": 1,
+        "field": "transaction.amount",
+        "value_type": "amount",
+        "page_scope": "following",
+        "family": "card"
+      }
+    ]
+  }
+}

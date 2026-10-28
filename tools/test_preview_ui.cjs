@@ -18,6 +18,9 @@ const {chromium}=require(process.env.BANKLENS_PLAYWRIGHT_PATH||'playwright');
     page.on('request',r=>{if(new URL(r.url()).origin!==new URL(url).origin)external.push(r.url());});
     const loaded=()=>page.waitForFunction(()=>!document.body.classList.contains('busy')&&document.querySelectorAll('.token').length>0);
     await page.goto(url);await loaded();
+    await page.waitForFunction(()=>!document.querySelector('#profile-select').disabled);
+    assert.equal(await page.locator('#profile-select').inputValue(),'bundled:bank-austria:1');
+    assert.match(await page.locator('#profile-status').textContent(),/Bank Austria.*Mitgeliefert.*Revision 1/);
     const word=text=>page.locator('.token').filter({hasText:new RegExp('^'+text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*$')}).first();
     async function example(text,field,whole=false){await word(text).click();if(whole)await page.locator('#whole-line').click();await page.locator('#field').selectOption(field);await page.locator('#add-example').click();}
     // A real mouse drag creates a native browser text selection. Word snapping
@@ -54,7 +57,10 @@ const {chromium}=require(process.env.BANKLENS_PLAYWRIGHT_PATH||'playwright');
     await page.reload();await loaded();
     assert.match(await page.locator('#summary').textContent(),/5 Beispiele/);
     assert.ok(await page.locator('#apply-profile').isEnabled());
-    const profile=JSON.parse(await fs.readFile(path.join(state,'field-profile.json'),'utf8'));
+    const catalog=await page.evaluate(()=>fetch('api/profiles').then(r=>r.json()));
+    const [origin,id,rev]=catalog.selected_profile.split(':');
+    assert.equal(origin,'local');
+    const profile=JSON.parse(await fs.readFile(path.join(state,'profiles',id,rev+'.json'),'utf8')).profile;
     assert.ok(profile.anchors.length>0);
     assert.ok(!JSON.stringify(profile).includes('Erika'));
     assert.ok(!JSON.stringify(profile).includes('MUSTERGEHALT'));
@@ -64,6 +70,17 @@ const {chromium}=require(process.env.BANKLENS_PLAYWRIGHT_PATH||'playwright');
     await page.setViewportSize({width:390,height:844});
     await page.screenshot({path:path.join(root,'output','ui-check','fields-mobile.png'),fullPage:true});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile overflow');
+    // Switching creates a new session, preserving the previous tab's identity.
+    await page.locator('#profile-select').selectOption('bundled:bank-austria:1');
+    const oldUrl=page.url();
+    await page.locator('#profile-switch').click();
+    await page.waitForURL(current=>current.href!==oldUrl);await loaded();
+    await page.waitForFunction(()=>!document.querySelector('#profile-select').disabled);
+    assert.equal(await page.locator('#profile-select').inputValue(),'bundled:bank-austria:1');
+    const oldTab=await browser.newPage();await oldTab.goto(oldUrl);
+    await oldTab.waitForFunction(()=>!document.querySelector('#profile-select').disabled);
+    assert.equal(await oldTab.locator('#profile-select').inputValue(),catalog.selected_profile);
+    await oldTab.close();
     assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
     console.log(JSON.stringify({browser_checks:'passed',native_text_selection:true,examples:5,recognized_rows:6,save_reload_undo_rejection:true,external_requests:0,page_errors:0,artificial_inputs_only:true}));
   }finally{if(browser)await browser.close();server.kill('SIGTERM');}

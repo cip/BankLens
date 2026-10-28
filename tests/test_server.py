@@ -9,6 +9,10 @@ from banklens_pdf.preview import make_server
 
 
 class EmptyReview:
+    selected_profile="examples"
+    class profiles:
+        @staticmethod
+        def metadata(reference): return {"sha256":"0"*64}
     profile_path=Path("/nonexistent-banklens-test-profile")
 
 

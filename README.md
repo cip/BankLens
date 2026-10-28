@@ -88,11 +88,26 @@ Jede exportierte Seite enthält einen Quellverweis mit Originaldateiname und Sei
 
 Vor Vorschau und Export kannst du erkannte Felder im Kontokopf einzeln zum Schwärzen auswählen. Kontoinhaber 1 und 2, Adresse, Kontonummer, IBAN sowie Anfangs- und Endsaldo sind vorausgewählt; Währung und Auszugsangaben bleiben standardmäßig sichtbar. Weitere Felder lassen sich bei Bedarf auswählen. Dafür muss das Feld im Bankprofil für die jeweilige Seitenart eingerichtet sein. Felder, die das Profil auf einer Seite nicht erkennt, bleiben sichtbar; prüfe deshalb jede Vorschauseite. Andere Buchungen sowie der Summen- und Saldenbereich unterhalb der Buchungstabelle werden geschwärzt.
 
+## Bankprofil auswählen
+
+In beiden Modi zeigt **Bankprofil verwenden** Name, Herkunft und Revision.
+**Bank Austria · Mitgeliefert · Revision 1** ist jetzt im Repository enthalten.
+Es enthält ausschließlich strukturelle Regeln aus dem bisher angelernten Layout,
+keine Beispielwerte oder Originaldateinamen. Damit ist keine vollständige
+Kompatibilität mit allen Bank-Austria-Auszügen nachgewiesen. Prüfe jede Schwärzung.
+
+Wähle ein Profil und klicke **Profil verwenden**. Der Wechsel öffnet eine neue
+Sitzung; bisherige Treffer und Exporte werden dort nicht übernommen. Ältere Tabs
+behalten ihre Sitzung. Speichere neue Beispiele vor dem Wechsel. Ohne bisherigen
+Arbeitsstand ist Bank Austria vorausgewählt; bestehende Beispiele oder die alte
+Profildatei bleiben beim ersten Laden bevorzugt. Eine ausdrückliche Auswahl hat
+anschließend Vorrang.
+
 ## Andere Banken mit der Feldwerkstatt anlernen
 
 Die Feldwerkstatt lässt dich BankLens zeigen, wie ein Kontoauszug aufgebaut ist. Du wählst Text im PDF aus und ordnest ihm eine Bedeutung zu, beispielsweise Kontoinhaber, Buchungsdatum, Betrag oder ganze Buchung. Daraus entsteht ein wiederverwendbares Bankprofil.
 
-1. Starte für ein weiteres Banklayout mit einem eigenen Profilordner:
+1. Lade den Auszugsordner. Mehrere Profile können im selben lokalen Arbeitsordner liegen. Ein eigener Arbeitsordner bleibt optional:
 
    ```sh
    sh tools/pdf-toolkit preview "/pfad/zu/den/auszuegen" --state-dir private/meine-bank
@@ -100,7 +115,7 @@ Die Feldwerkstatt lässt dich BankLens zeigen, wie ein Kontoauszug aufgebaut ist
 
 2. Öffne **Feldwerkstatt** und markiere typische Textstellen. Mit **Als Beispiel zuordnen** legst du ihre Feldrolle fest. **Ganze Buchung auswählen** hilft bei mehrzeiligen Buchungen.
 3. Wähle **Aus Beispielen erkennen** und prüfe die Vorschläge. Korrigiere unpassende Treffer und ergänze Beispiele für abweichende Buchungen oder Folgeseiten.
-4. Vergib einen Namen für das Bankprofil und klicke auf **Profil & Zuordnungen speichern**. Über **Gespeichertes Profil anwenden** kannst du es auf weitere Auszüge desselben Layouts anwenden.
+4. Vergib einen Namen für das Bankprofil und klicke auf **Profil & Zuordnungen speichern**. Ein neuer Name erzeugt ein eigenes lokales Profil. Beim Speichern unter demselben ausgewählten lokalen Profilnamen entsteht eine neue Revision; alte Revisionen bleiben auswählbar. Mitgelieferte Profile werden dabei als lokale Kopie gespeichert. **Gewähltes Profil anwenden** nutzt die Auswahl oben, **Aus Beispielen erkennen** die aktuellen Arbeitsbeispiele.
 5. Wechsle zu **Zahlungsnachweise**, lies die Auszüge ein und prüfe Suche und Schwärzung.
 
 Für diese Schritte sind keine Programmierkenntnisse nötig. Nicht jedes Bankformat lässt sich mit den vorhandenen Regeln abbilden; manche Layouts erfordern zusätzliche technische Anpassungen. Bildscans werden derzeit nicht unterstützt.
@@ -109,7 +124,7 @@ Für diese Schritte sind keine Programmierkenntnisse nötig. Nicht jedes Bankfor
 
 **Hast du BankLens an die Auszüge deiner Bank angepasst? Teile dein erprobtes Profil mit dem Projekt, damit andere auf deiner Arbeit aufbauen können.**
 
-Öffne dafür ein [Issue](https://github.com/cip/BankLens/issues) oder einen Pull Request und beschreibe die Bank, das Auszugslayout und welche Fälle du geprüft hast. Das wiederverwendbare Profil liegt im gewählten Profilordner als `field-profile.json`. Es enthält Layoutregeln statt ausgelesener Beispielwerte; prüfe es vor dem Teilen trotzdem auf persönliche Angaben, insbesondere im selbst vergebenen Profilnamen.
+Öffne dafür ein [Issue](https://github.com/cip/BankLens/issues) oder einen Pull Request und beschreibe die Bank, das Auszugslayout und welche Fälle du geprüft hast. Die gewählte Revision liegt im lokalen Arbeitsordner unter `profiles/<id>/<revision>.json`; bestehende `field-profile.json`-Dateien bleiben als Altprofile lesbar. Es enthält Layoutregeln statt ausgelesener Beispielwerte; prüfe es vor dem Teilen trotzdem auf persönliche Angaben, insbesondere im selbst vergebenen Profilnamen.
 
 Teile ausschließlich das geprüfte Profil und gegebenenfalls vollständig künstliche Beispieldaten. Echte Kontoauszüge, exportierte Nachweise und persönliche Arbeitsstände (`field-workspace-*.json`) gehören nicht in Issues oder Pull Requests. Weitere Hinweise stehen in [CONTRIBUTING.md](CONTRIBUTING.md).
 
