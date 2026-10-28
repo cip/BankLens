@@ -97,6 +97,7 @@
     try{
       const source=await request('api/source');
       input.value=source.directory;
+      if(!source.directory){show('Wähle einen Auszugsordner, um zu beginnen.');setBusy(false);return;}
       show(`${source.document_count} PDF${source.document_count===1?'':'s'} · ${source.page_count} Seiten im aktuellen Ordner.`);
       setBusy(false);
     }catch{

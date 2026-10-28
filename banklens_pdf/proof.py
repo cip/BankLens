@@ -1,8 +1,9 @@
 """Local search and image-only redacted copies. Never log document strings.
 
 Search text stays in RAM. Output pages are fresh RGB images: everything starts
-black, then only the account header and selected booking bands are copied in.
-No original PDF objects, metadata, text layers or attachments are transferred.
+black, then the account header without selected field masks and selected
+booking bands are copied in. No original PDF objects, metadata, text layers or
+attachments are transferred.
 """
 from __future__ import annotations
 
@@ -34,6 +35,117 @@ from .preview import quiet_renderer
 
 class ProofError(ValueError):
     """Only fixed public codes are exposed to the browser."""
+
+
+REDACTION_OPTIONS=(
+    {"id":"owner-1","label":"Kontoinhaber 1","default":True},
+    {"id":"owner-2","label":"Kontoinhaber 2","default":True},
+    {"id":"owner-address","label":"Eigene Adresse","default":True},
+    {"id":"account-number","label":"Kontonummer","default":True},
+    {"id":"account-iban","label":"IBAN","default":True},
+    {"id":"account-currency","label":"Kontowährung","default":False},
+    {"id":"statement-date","label":"Auszugsdatum","default":False},
+    {"id":"statement-period","label":"Auszugszeitraum","default":False},
+    {"id":"opening-balance","label":"Anfangssaldo","default":True},
+    {"id":"closing-balance","label":"Endsaldo","default":True},
+)
+REDACTION_IDS={option["id"] for option in REDACTION_OPTIONS}
+HEADER_FIELD_OPTIONS={
+    "owner.address.line1":"owner-address",
+    "owner.address.line2":"owner-address",
+    "owner.address.line3":"owner-address",
+    "account.number":"account-number",
+    "account.iban":"account-iban",
+    "account.currency":"account-currency",
+    "statement.date":"statement-date",
+    "statement.period":"statement-period",
+    "statement.opening_balance":"opening-balance",
+    "statement.closing_balance":"closing-balance",
+}
+
+
+def proof_profile_context(review):
+    """Return the same local profile and annotations used for fresh indexing."""
+    workspace=review.load_workspace()
+    profile=review.learn(workspace)
+    if not any(a["kind"]=="example" for d in workspace["documents"] for a in d["annotations"]) and review.profile_path.is_file():
+        profile=review.load_profile()
+    return profile,workspace
+
+
+def owner_option_for_y(profile,y,page_scope=None):
+    rules=[r for r in profile.get("header_rules",[]) if r.get("field")=="owner.name"
+           and (page_scope is None or r.get("page_scope")==page_scope)]
+    if not rules:
+        return None
+    nearest=min(rules,key=lambda r:abs((r["box"][1]+r["box"][3]/2)-y))
+    entity=nearest.get("entity_id")
+    if entity in ("holder-1","holder-2"):
+        return "owner-"+entity[-1]
+    centers=sorted({round(r["box"][1]+r["box"][3]/2,4) for r in rules})
+    rank=centers.index(round(nearest["box"][1]+nearest["box"][3]/2,4))+1
+    return f"owner-{rank}" if rank<=2 else None
+
+
+def redaction_option_for_rule(rule,profile):
+    if rule.get("field")=="owner.name":
+        return owner_option_for_y(profile,rule["box"][1]+rule["box"][3]/2,rule.get("page_scope"))
+    return HEADER_FIELD_OPTIONS.get(rule.get("field"))
+
+
+def redaction_option_for_annotation(annotation,layout,profile):
+    field=annotation.get("field")
+    if field=="owner.name":
+        entity=annotation.get("entity_id")
+        if entity in ("holder-1","holder-2"):
+            return "owner-"+entity[-1]
+        chosen=set(annotation.get("token_ids",[]))
+        tokens=[t for t in layout["tokens"] if t["id"] in chosen and t.get("rotation",0)==0]
+        if not tokens:
+            return None
+        box=bounds(tokens)
+        scope="first" if layout["page"]==1 else "following"
+        return owner_option_for_y(profile,box[1]+box[3]/2,scope)
+    return HEADER_FIELD_OPTIONS.get(field)
+
+
+def redaction_field_metadata(profile):
+    scopes={option["id"]:set() for option in REDACTION_OPTIONS}
+    for rule in profile.get("header_rules",[]):
+        option=redaction_option_for_rule(rule,profile)
+        if option in REDACTION_IDS and rule.get("page_scope") in ("first","following"):
+            scopes[option].add(rule["page_scope"])
+    return [{"id":option["id"],"label":option["label"],"available":bool(scopes[option["id"]]),
+             "default":option["default"],"first_page":"first" in scopes[option["id"]],
+             "following_pages":"following" in scopes[option["id"]]} for option in REDACTION_OPTIONS]
+
+
+def default_redaction_fields(profile):
+    return {option["id"] for option in redaction_field_metadata(profile) if option["available"] and option["default"]}
+
+
+def redaction_boxes(review,document_id,number,profile,workspace,requested):
+    if not requested:
+        return []
+    layout=review.text_layout(document_id,number)
+    saved=next(d for d in workspace["documents"] if d["document_id"]==document_id)
+    rejected=[a for a in saved["annotations"] if a["page"]==number and a["kind"]=="rejected"]
+    outcome=recognize_page(profile,layout,document_id,rejected)
+    context=table_context(layout)
+    lookup={t["id"]:t for t in layout["tokens"]}
+    boxes=[]
+    for annotation in outcome["suggestions"]:
+        option=redaction_option_for_annotation(annotation,layout,profile)
+        if option not in requested:
+            continue
+        tokens=[lookup[i] for i in annotation["token_ids"] if i in lookup and lookup[i].get("rotation",0)==0]
+        if not tokens:
+            continue
+        box=bounds(tokens)
+        if context and box[1]+box[3]/2>=context["top"]:
+            continue
+        boxes.append(box)
+    return boxes
 
 
 FONT_LOCK=threading.Lock()
@@ -119,12 +231,10 @@ def words_text(layout,ids):
     return "".join(output)
 
 
-def index_bookings(review,progress=lambda done,total,count:None,cancel=None):
+def index_bookings(review,progress=lambda done,total,count:None,cancel=None,profile=None,workspace=None):
     """Fresh coarse recognition, using local examples but not stale predictions."""
-    workspace=review.load_workspace()
-    profile=review.learn(workspace)
-    if not any(a["kind"]=="example" for d in workspace["documents"] for a in d["annotations"]) and review.profile_path.is_file():
-        profile=review.load_profile()
+    if profile is None or workspace is None:
+        profile,workspace=proof_profile_context(review)
     total=sum(d["page_count"] for d in review.documents)
     records=[]
     done=0
@@ -227,12 +337,19 @@ def page_bands(layout,pieces):
     return context["top"],bands
 
 
-def render_redacted(review,document_id,number,pieces,dpi=180):
+def render_redacted(review,document_id,number,pieces,dpi=180,redaction_fields=None,profile=None,workspace=None):
     """Return sanitized pixels and page dimensions, never an original image."""
     if not review.source_is_current(document_id):
         raise ProofError("source_changed")
+    if profile is None or workspace is None:
+        profile,workspace=proof_profile_context(review)
+    if redaction_fields is None:
+        redaction_fields=default_redaction_fields(profile)
+    else:
+        redaction_fields=set(redaction_fields)
     layout=review.text_layout(document_id,number)
     header,bands=page_bands(layout,pieces)
+    masks=redaction_boxes(review,document_id,number,profile,workspace,redaction_fields)
     with quiet_renderer(),pdfium.PdfDocument(str(review.paths[document_id])) as document:
         page=document[number-1]
         try:
@@ -255,8 +372,14 @@ def render_redacted(review,document_id,number,pieces,dpi=180):
                 region=original.crop(rect)
                 result.paste(region,rect[:2])
                 region.close()
-        # Rotated marginal stamps are not part of a booking or its evidence.
         draw=ImageDraw.Draw(result)
+        for left,top,mask_width,mask_height in masks:
+            rect=(max(0,math.floor(left*result.width)-2),max(0,math.floor(top*result.height)-2),
+                  min(result.width,math.ceil((left+mask_width)*result.width)+2),
+                  min(result.height,math.ceil((top+mask_height)*result.height)+2))
+            if rect[2]>rect[0] and rect[3]>rect[1]:
+                draw.rectangle(rect,fill=(0,0,0))
+        # Rotated marginal stamps are not part of a booking or its evidence.
         for token in layout["tokens"]:
             if token.get("rotation",0)!=0 and token["box"][1]>=header:
                 x,y,w,h=token["box"]
@@ -271,7 +394,8 @@ def render_redacted(review,document_id,number,pieces,dpi=180):
         original.close()
 
 
-def write_combined_pdf(review,pieces,output,progress=lambda:None,source_reference="filename",dpi=180,repo_url=None):
+def write_combined_pdf(review,pieces,output,progress=lambda:None,source_reference="filename",dpi=180,repo_url=None,
+                       redaction_fields=None,profile=None,workspace=None):
     if source_reference not in ("filename","neutral"):
         raise ProofError("invalid_reference")
     repo_url=repository_link(repo_url)
@@ -287,7 +411,8 @@ def write_combined_pdf(review,pieces,output,progress=lambda:None,source_referenc
     pdf.setSubject("")
     pdf.setCreator("BankLens")
     for document_id,number in sorted(by_page,key=lambda key:(order[key[0]],key[1])):
-        image,size=render_redacted(review,document_id,number,by_page[(document_id,number)],dpi=dpi)
+        image,size=render_redacted(review,document_id,number,by_page[(document_id,number)],dpi=dpi,
+                                   redaction_fields=redaction_fields,profile=profile,workspace=workspace)
         try:
             font,lines,linked_lines=reference_lines(review,document_id,number,size[0],source_reference,repo_url)
             footer_height=16+len(lines)*9
@@ -317,10 +442,12 @@ def write_combined_pdf(review,pieces,output,progress=lambda:None,source_referenc
         raise ProofError("source_changed")
 
 
-def write_redacted_pdf(review,document_id,pieces,output,progress=lambda:None,source_reference="filename",repo_url=None):
+def write_redacted_pdf(review,document_id,pieces,output,progress=lambda:None,source_reference="filename",repo_url=None,
+                       redaction_fields=None,profile=None,workspace=None):
     if any(piece["document_id"]!=document_id for piece in pieces):
         raise ProofError("invalid_selection")
-    write_combined_pdf(review,pieces,output,progress,source_reference,repo_url=repo_url)
+    write_combined_pdf(review,pieces,output,progress,source_reference,repo_url=repo_url,
+                       redaction_fields=redaction_fields,profile=profile,workspace=workspace)
 
 
 class ProofService:
@@ -337,10 +464,36 @@ class ProofService:
         self.status={"phase":"idle","pages_done":0,"pages_total":sum(d["page_count"] for d in review.documents),"booking_count":0}
         self.export_status={"phase":"idle","pages_done":0,"pages_total":0,"files":[]}
         self.downloads={}
+        self.profile=None
+        self.workspace=None
+        self.redaction_fields=[]
+        self._refresh_profile_context()
+
+    def _refresh_profile_context(self):
+        try:
+            profile,workspace=proof_profile_context(self.review)
+        except Exception:
+            profile,workspace=None,None
+        with self.lock:
+            self.profile,self.workspace=profile,workspace
+            self.redaction_fields=redaction_field_metadata(profile or {})
+
+    def selected_redaction_fields(self,fields):
+        available={option["id"] for option in self.redaction_fields if option["available"]}
+        if fields is None:
+            return {option["id"] for option in self.redaction_fields if option["available"] and option["default"]}
+        if not isinstance(fields,list) or len(fields)>len(REDACTION_OPTIONS) or any(not isinstance(item,str) for item in fields) or len(set(fields))!=len(fields):
+            raise ProofError("invalid_redaction_fields")
+        if any(item not in REDACTION_IDS for item in fields):
+            raise ProofError("invalid_redaction_fields")
+        if any(item not in available for item in fields):
+            raise ProofError("field_not_configured")
+        return set(fields)
 
     def state(self):
         with self.lock:
-            return {"index":dict(self.status),"export":dict(self.export_status)}
+            return {"index":dict(self.status),"export":dict(self.export_status),
+                    "redaction_fields":[dict(option) for option in self.redaction_fields]}
 
     def start_index(self):
         with self.lock:
@@ -349,15 +502,17 @@ class ProofService:
             self.status={"phase":"indexing","pages_done":0,"pages_total":sum(d["page_count"] for d in self.review.documents),"booking_count":0}
             self.records={}
             self.cancel.clear()
-        threading.Thread(target=self._index,daemon=True).start()
+        self._refresh_profile_context()
+        profile,workspace=self.profile,self.workspace
+        threading.Thread(target=self._index,args=(profile,workspace),daemon=True).start()
         return self.state()
 
-    def _index(self):
+    def _index(self,profile,workspace):
         def progress(done,total,count):
             with self.lock:
                 self.status.update(pages_done=done,pages_total=total,booking_count=count)
         try:
-            records=index_bookings(self.review,progress,self.cancel)
+            records=index_bookings(self.review,progress,self.cancel,profile=profile,workspace=workspace)
             with self.lock:
                 self.records={r["id"]:r for r in records}
                 self.status.update(phase="ready",booking_count=len(records))
@@ -388,13 +543,17 @@ class ProofService:
             raise ProofError("too_many_pages")
         return pieces
 
-    def preview(self,ids,document_id,number,source_reference="filename"):
-        pieces=self.selection(ids)
+    def preview(self,ids,document_id,number,source_reference="filename",redaction_fields=None):
+        with self.lock:
+            redact=self.selected_redaction_fields(redaction_fields)
+            pieces=self.selection(ids)
+            profile,workspace=self.profile,self.workspace
         selected=[p for p in pieces if p["document_id"]==document_id and p["page"]==number]
         if not selected:
             raise ProofError("page_not_selected")
         stream=io.BytesIO()
-        write_combined_pdf(self.review,selected,stream,source_reference=source_reference,dpi=120,repo_url=self.repo_url)
+        write_combined_pdf(self.review,selected,stream,source_reference=source_reference,dpi=120,repo_url=self.repo_url,
+                           redaction_fields=redact,profile=profile,workspace=workspace)
         with quiet_renderer(),pdfium.PdfDocument(stream.getvalue()) as document:
             page=document[0]
             try:
@@ -412,22 +571,24 @@ class ProofService:
             finally:
                 page.close()
 
-    def start_export(self,ids,output_format="combined",source_reference="filename"):
+    def start_export(self,ids,output_format="combined",source_reference="filename",redaction_fields=None):
         if output_format not in ("combined","separate"):
             raise ProofError("invalid_export_format")
         if source_reference not in ("filename","neutral"):
             raise ProofError("invalid_reference")
-        pieces=self.selection(ids)
         with self.lock:
+            redact=self.selected_redaction_fields(redaction_fields)
+            pieces=self.selection(ids)
             if self.status["phase"]=="indexing" or self.export_status["phase"]=="exporting":
                 raise ProofError("busy")
+            profile,workspace=self.profile,self.workspace
             job=secrets.token_hex(12)
             pages=len({(p["document_id"],p["page"]) for p in pieces})
             self.export_status={"phase":"exporting","pages_done":0,"pages_total":pages,"files":[]}
-        threading.Thread(target=self._export,args=(job,pieces,output_format,source_reference),daemon=True).start()
+        threading.Thread(target=self._export,args=(job,pieces,output_format,source_reference,redact,profile,workspace),daemon=True).start()
         return self.state()
 
-    def _export(self,job,pieces,output_format,source_reference):
+    def _export(self,job,pieces,output_format,source_reference,redaction_fields,profile,workspace):
         folder=self.output_directory/job
         generated=[]
         try:
@@ -441,7 +602,8 @@ class ProofService:
             if output_format=="combined":
                 target=folder/"zahlungsnachweise.pdf"
                 generated.append(target)
-                write_combined_pdf(self.review,pieces,target,progress,source_reference,repo_url=self.repo_url)
+                write_combined_pdf(self.review,pieces,target,progress,source_reference,repo_url=self.repo_url,
+                                   redaction_fields=redaction_fields,profile=profile,workspace=workspace)
             else:
                 for descriptor in self.review.documents:
                     document_id=descriptor["document_id"]
@@ -449,7 +611,8 @@ class ProofService:
                         continue
                     target=folder/f"nachweis-{document_id}.pdf"
                     generated.append(target)
-                    write_redacted_pdf(self.review,document_id,by_document[document_id],target,progress,source_reference,self.repo_url)
+                    write_redacted_pdf(self.review,document_id,by_document[document_id],target,progress,source_reference,self.repo_url,
+                                       redaction_fields,profile,workspace)
                 if len(generated)>1:
                     bundle=folder/"zahlungsnachweise.zip"
                     pdfs=list(generated)
