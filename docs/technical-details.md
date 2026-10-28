@@ -190,7 +190,9 @@ zufaelligen Sitzungsschluessel sowie Host-/Origin-Pruefungen. Es gibt keine
 externen Skripte, Schriften oder Dienste. Seitenbilder und Textlayouts bleiben
 im Arbeitsspeicher; HTTP-Antworten verwenden `no-store`.
 
-Unter `private/review/` werden mit Dateirechten `0600` gespeichert:
+Unter `private/review/` werden auf POSIX-Systemen mit Dateirechten `0600`
+gespeichert. Windows verwendet stattdessen die geerbten Zugriffslisten des
+Zielordners; ein gleichwertiger Schutz ist bisher nicht nachgewiesen:
 
 - `field-profile.json`: bisheriges Einzelprofil, weiterhin lesbar; wird von
   neuen Speichervorgängen nicht überschrieben.

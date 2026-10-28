@@ -56,25 +56,6 @@ jobs:
           python-version: '3.11'
       - name: Install NSIS
         run: choco install nsis --no-progress -y
-      - name: Inspect synthetic Windows file ACLs
-        shell: pwsh
-        run: |
-          $dir = Join-Path $env:LOCALAPPDATA ("BankLens-ci-acl-" + [guid]::NewGuid())
-          New-Item -ItemType Directory -Path $dir | Out-Null
-          try {
-            $file = Join-Path $dir 'synthetic.txt'
-            python -c "import os,sys; f=os.open(sys.argv[1], os.O_CREAT|os.O_EXCL|os.O_WRONLY, 0o600); os.write(f,b'synthetic'); os.close(f); os.chmod(sys.argv[1],0o600)" $file
-            if ($LASTEXITCODE) { exit $LASTEXITCODE }
-            foreach ($item in @($dir, $file)) {
-              Write-Output ("ACL for " + $(if ($item -eq $dir) { 'directory' } else { 'file' }))
-              $acl = Get-Acl -LiteralPath $item
-              Write-Output ("Protected=" + $acl.AreAccessRulesProtected)
-              $acl.Access | ForEach-Object {
-                $sid = $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
-                Write-Output ("SID={0} Type={1} Rights={2} Inherited={3} Inheritance={4}" -f $sid,$_.AccessControlType,$_.FileSystemRights,$_.IsInherited,$_.InheritanceFlags)
-              }
-            }
-          } finally { Remove-Item -LiteralPath $dir -Recurse -Force }
       - name: Run Python tests
         run: |
           python -m pip install -r requirements.txt

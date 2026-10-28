@@ -159,8 +159,12 @@ BankLens steht unter [GPL-3.0-only](LICENSE). Informationen zu Copyright und zus
 Der Windows-Installer wird im CI-Lauf als Artefakt gebaut; er ist noch nicht als
 verifiziertes Release freigegeben. Er benötigt die Microsoft WebView2 Runtime.
 Die Installation erfolgt pro Benutzer unter `%LOCALAPPDATA%\Programs\BankLens`.
-Arbeitsstände und erzeugte Kopien liegen unter `%LOCALAPPDATA%\BankLens\state`;
-dieser Ordner bleibt bei Deinstallation erhalten. Der Auszugsordner muss davon
-getrennt sein. Installer und Anwendung sind derzeit nicht codesigniert; Windows
+Arbeitsstände liegen unter `%LOCALAPPDATA%\BankLens\state` und bleiben bei
+Deinstallation erhalten. Erzeugte Kopien werden derzeit relativ zum
+Arbeitsverzeichnis des Prozesses unter `output/pdf/` gespeichert; der
+Speicherort im Desktopbetrieb ist noch zu korrigieren und zu prüfen. Der
+Auszugsordner muss vom Arbeitsstandsordner und Ausgabeordner getrennt sein.
+Unter Windows hängen die Zugriffsrechte von den geerbten Windows-ACLs ab;
+ein eigener Schutz der Dateien ist noch nicht nachgewiesen. Installer und Anwendung sind derzeit nicht codesigniert; Windows
 kann daher eine Warnung anzeigen. Installation, Upgrade, Deinstallation, Dialoge
 und PDF-Downloads müssen noch auf Windows mit künstlichen PDFs geprüft werden.
