@@ -19,7 +19,8 @@ def assert_private(test, path):
     '''
     env = dict(os.environ, BANKLENS_TEST_FILE=str(path))
     result = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-                            capture_output=True, text=True, env=env, check=True)
+                            capture_output=True, text=True, env=env, check=False)
+    test.assertEqual(result.returncode, 0, result.stderr)
     acl = json.loads(result.stdout)
     test.assertTrue(acl["protected"], "Windows ACL must block inheritance")
     rules = acl["rules"]
