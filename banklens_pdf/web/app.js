@@ -3,8 +3,8 @@ const $ = id => document.getElementById(id);
 let workspace, fields={}, current=0, page=1, ready=false, loading=false, scanning=false, cancelScan=false;
 let dirty=false, revision=0, generation=0, history=[], layout=null, selectedIDs=[], editing=null, profileAvailable=false;
 const layouts=new Map(), svgNS='http://www.w3.org/2000/svg';
-const EXPECTED_API_VERSION=8,EXPECTED_REVISION='booking-blocks-4';
-let serverCompatible=false,recognitionRevision=EXPECTED_REVISION;
+const EXPECTED_API_VERSION=9,EXPECTED_REVISION='booking-blocks-4';
+let serverCompatible=false,recognitionRevision=EXPECTED_REVISION,activeProfileDigest=null;
 function message(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);}
 async function api(route,payload){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),payload===undefined?30000:60000);
@@ -14,13 +14,15 @@ async function api(route,payload){
   finally{clearTimeout(timer);}
 }
 const doc=()=>workspace.documents[current];
-const outdated=a=>a.kind==='suggestion'&&a.recognition_revision!==recognitionRevision;
+const outdated=a=>a.kind==='suggestion'&&(a.recognition_revision!==recognitionRevision||a.profile_sha256!==activeProfileDigest);
 const active=a=>a.kind!=='rejected'&&!outdated(a);
 function shown(a){const filter=$('filter').value;return !filter||(filter==='structure'?(a.field==='transaction.row'||!a.field.startsWith('transaction.')):a.field===filter);}
 function pageAnnotations(){return doc().annotations.filter(a=>a.page===page&&active(a));}
 function tokens(ids,source=layout){const set=new Set(ids);return source?source.tokens.filter(t=>set.has(t.id)):[];}
 function textOf(ids,source=layout){let previous=null;return tokens(ids,source).map(t=>{const sep=previous===null?'':previous===t.line?' ':'\n';previous=t.line;return sep+t.text;}).join('');}
+window.banklensProfileBusy=()=>dirty||loading||scanning;
 function controls(){
+  window.dispatchEvent(new Event('banklens-controls'));
   const busy=!ready||loading||scanning;
   for(const id of ['document','page','field','scope','profile-name','filter','fine-fields'])$(id).disabled=busy;
   $('previous').disabled=busy||page<=1;$('next').disabled=busy||page>=doc().page_count;
@@ -114,7 +116,7 @@ function render(){
   const all=workspace.documents.flatMap(d=>d.annotations);$('summary').textContent=`${all.filter(a=>a.kind==='example').length} Beispiele · ${all.filter(a=>a.kind==='suggestion'&&active(a)).length} offene Vorschläge · ${all.filter(a=>a.field==='transaction.row'&&active(a)&&!a.continuation_of).length} Buchungen im Testset`;
   const stale=all.filter(outdated).length;
   $('revision-notice').hidden=serverCompatible&&!stale;
-  $('revision-message').textContent=!serverCompatible?'Der Server läuft mit einer älteren Version. Bitte das Toolkit im Startterminal neu starten.':`${stale} alte Vorschläge werden ausgeblendet. Mit der aktuellen Version neu berechnen; deine Beispiele und Bestätigungen bleiben erhalten.`;
+  $('revision-message').textContent=!serverCompatible?'Der Server läuft mit einer älteren Version. Bitte das Toolkit im Startterminal neu starten.':`${stale} alte Vorschläge werden ausgeblendet. Mit dem gewählten Profil und der aktuellen Version neu berechnen; deine Beispiele und Bestätigungen bleiben erhalten.`;
   renderOwners();renderRows();holderControls();
 }
 function buildTextLayer(){
@@ -214,7 +216,7 @@ $('cancel').addEventListener('click',()=>{cancelScan=true;$('recognition-status'
 async function recognize(useSaved=false){
   if(scanning||!serverCompatible)return;scanning=true;cancelScan=false;controls();render();
   try{
-    const profile=useSaved?await api('api/profile'):await api('api/learn',workspace);const ignored=profile.ignored_example_count||0;
+    const profile=useSaved?await api('api/profile'):await api('api/learn',workspace);const ignored=profile.ignored_example_count||0;window.dispatchEvent(new CustomEvent('banklens-recognition-source',{detail:useSaved?'Erkennung mit dem gewählten Profil: '+profile.profile_name+'.':'Erkennung aus aktuellen Arbeitsbeispielen: '+profile.profile_name+'. Für Zahlungsnachweise zuerst speichern.'}));
     if(!profile.anchors.length&&!profile.header_rules.length&&!profile.auto_table){message('Für Buchungen fehlt noch ein Datum oder eine ganze Buchung mit Datum als Beispiel.',true);return;}
     const targets=$('scope').value==='all'?workspace.documents:[doc()];const total=targets.reduce((n,d)=>n+d.page_count,0);let done=0,found=0;
     remember();$('progress').max=total;$('progress').value=0;
@@ -223,6 +225,7 @@ async function recognize(useSaved=false){
       $('recognition-status').textContent=`${document.document_id.replace('document-','Dokument ')} · Seite ${number} von ${document.page_count} · ${done}/${total} Seiten`;
       const existing=document.annotations.filter(a=>a.page===number&&a.kind!=='suggestion');
       const result=await api('api/recognize',{profile,document_id:document.document_id,page:number,existing,previous});
+      activeProfileDigest=result.profile_sha256;
       document.annotations=document.annotations.filter(a=>a.page!==number||a.kind!=='suggestion').concat(result.suggestions);
       for(const row of result.rows||[]){const target=document.annotations.find(a=>a.id===row.id);if(target){target.partial=row.partial;target.family=row.family;target.continuation_of=row.continuation_of||null;delete target.continued_on;}if(row.continuation_of){const root=document.annotations.find(a=>a.id===row.continuation_of);if(root)root.continued_on=number;}}
       for(const link of result.field_links||[]){const target=document.annotations.find(a=>a.id===link.id&&a.field===link.field);if(target&&target.kind!=='rejected')target.row_id=link.row_id;}
@@ -234,9 +237,9 @@ async function recognize(useSaved=false){
   }catch{message('Die Erkennung konnte nicht vollständig abgeschlossen werden. Bereits erkannte Vorschläge bleiben erhalten.',true);}
   finally{scanning=false;render();controls();}
 }
-$('refresh-suggestions').addEventListener('click',()=>{$('scope').value='all';recognize(!workspace.documents.some(d=>d.annotations.some(a=>a.kind==='example')));});
+$('refresh-suggestions').addEventListener('click',()=>{$('scope').value='all';recognize(true);});
 $('recognize').addEventListener('click',()=>recognize(false));$('apply-profile').addEventListener('click',()=>recognize(true));
-$('save').addEventListener('click',async()=>{const saving=revision;$('save').disabled=true;try{const result=await api('api/workspace',workspace);if(revision===saving)dirty=false;profileAvailable=profileAvailable||result.profile_updated;message(result.profile_updated?'Bankprofil und Zuordnungen lokal gespeichert.':'Zuordnungen lokal gespeichert. Für ein Erkennungsprofil fehlen noch passende Beispiele.');}catch{message('Speichern fehlgeschlagen. Deine Änderungen bleiben hier erhalten.',true);}controls();});
+$('save').addEventListener('click',async()=>{const saving=revision;$('save').disabled=true;try{const result=await api('api/workspace',workspace);if(revision===saving)dirty=false;activeProfileDigest=result.profile_sha256;render();window.dispatchEvent(new Event('banklens-profile-saved'));profileAvailable=profileAvailable||result.profile_updated;message(result.profile_updated?'Bankprofil und Zuordnungen lokal gespeichert.':'Zuordnungen lokal gespeichert. Für ein Erkennungsprofil fehlen noch passende Beispiele.');}catch{message('Speichern fehlgeschlagen. Deine Änderungen bleiben hier erhalten.',true);}controls();});
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
 async function initialize(){
   if(location.protocol==='file:'){
@@ -244,5 +247,5 @@ async function initialize(){
     message('Bitte die lokale Serveradresse öffnen, nicht index.html im Finder. Den Link findest du in diesem Chat oder im Startterminal.',true);
     return;
   }
-  try{const [config,state]=await Promise.all([api('api/config'),api('api/workspace')]);fields=config.fields;workspace=state;profileAvailable=config.profile_available;serverCompatible=config.api_version===EXPECTED_API_VERSION&&config.recognition_revision===EXPECTED_REVISION;recognitionRevision=config.recognition_revision||EXPECTED_REVISION;$('app-version').textContent=config.app_version?'v'+config.app_version:'älterer Server';if(!workspace.documents.length){$('loading').textContent='Wähle oben einen Auszugsordner.';message('Wähle einen Auszugsordner, um zu beginnen.');return;}workspace.documents.forEach((d,index)=>{const option=document.createElement('option');option.value=index;option.textContent=`Dokument ${index+1}`;$('document').append(option);});for(const [value,label]of Object.entries(fields)){const option=document.createElement('option');option.value=value;option.textContent=label;$('filter').append(option);}populateFields();$('profile-name').value=workspace.profile_name;ready=true;if(state.repaired_parent_links)dirty=true;controls();message(state.repaired_parent_links?state.repaired_parent_links+' vorhandene Felder wieder mit ihren Buchungen verknüpft. Bitte speichern.':'Bereit. Wähle Text und ordne ihm ein Feld zu.');await showPage();}catch{message('Die Feldwerkstatt konnte nicht geladen werden. Bitte das lokale Toolkit neu starten.',true);$('loading').textContent='Keine Verbindung zur Feldwerkstatt';}}
+  try{const [config,state]=await Promise.all([api('api/config'),api('api/workspace')]);fields=config.fields;workspace=state;profileAvailable=config.profile_available;activeProfileDigest=config.profile_sha256;serverCompatible=config.api_version===EXPECTED_API_VERSION&&config.recognition_revision===EXPECTED_REVISION;recognitionRevision=config.recognition_revision||EXPECTED_REVISION;$('app-version').textContent=config.app_version?'v'+config.app_version:'älterer Server';if(!workspace.documents.length){$('loading').textContent='Wähle oben einen Auszugsordner.';message('Wähle einen Auszugsordner, um zu beginnen.');return;}workspace.documents.forEach((d,index)=>{const option=document.createElement('option');option.value=index;option.textContent=`Dokument ${index+1}`;$('document').append(option);});for(const [value,label]of Object.entries(fields)){const option=document.createElement('option');option.value=value;option.textContent=label;$('filter').append(option);}populateFields();$('profile-name').value=workspace.profile_name;ready=true;if(state.repaired_parent_links)dirty=true;controls();message(state.repaired_parent_links?state.repaired_parent_links+' vorhandene Felder wieder mit ihren Buchungen verknüpft. Bitte speichern.':'Bereit. Wähle Text und ordne ihm ein Feld zu.');await showPage();}catch{message('Die Feldwerkstatt konnte nicht geladen werden. Bitte das lokale Toolkit neu starten.',true);$('loading').textContent='Keine Verbindung zur Feldwerkstatt';}}
 initialize();

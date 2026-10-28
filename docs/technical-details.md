@@ -143,9 +143,8 @@ Dateien und ihre Pruefsummen neu erfasst.
    bewusst ein weiteres Lernbeispiel hinzu. Eine Sammelbestaetigung macht
    Vorschlaege nicht automatisch zu neuen Trainingsbeispielen.
 5. **Profil & Zuordnungen speichern** speichert die Arbeit lokal. Ein Profil
-   laesst sich mit **Gespeichertes Profil anwenden** auch auf andere PDFs im
-   selben Layout anwenden. Fuer eine andere Bank ein eigenes `--state-dir`
-   verwenden. Die Buchungstabelle zeigt die zugeordneten Unterfelder pro Seite.
+   laesst sich mit **Gewähltes Profil anwenden** auch auf andere PDFs im
+   selben Layout anwenden. Mehrere lokale Profile koennen im selben `--state-dir` liegen. Die Buchungstabelle zeigt die zugeordneten Unterfelder pro Seite.
 
 ## Wie die erste Erkennung arbeitet
 
@@ -193,14 +192,18 @@ im Arbeitsspeicher; HTTP-Antworten verwenden `no-store`.
 
 Unter `private/review/` werden mit Dateirechten `0600` gespeichert:
 
-- `field-profile.json`: wiederverwendbare Feldrollen, Formatklassen und
-  Layoutregeln. Keine ausgelesenen Beispielwerte oder Originaldateinamen;
-  der Profilname wird vom Benutzer eingegeben.
+- `field-profile.json`: bisheriges Einzelprofil, weiterhin lesbar; wird von
+  neuen Speichervorgängen nicht überschrieben.
+- `profiles/<id>/<revision>.json`: lokale Profile mit stabiler zufälliger ID und
+  unveränderlichen Revisionen. Der frei eingegebene Profilname wird niemals als
+  Dateipfad verwendet.
+- `profile-selection-<set-id>.json`: zuletzt gewählte Profilreferenz für genau
+  diese PDF-Prüfsummen. Bestehende Tabs behalten ihre Auswahl.
 - `field-workspace-<set-id>.json`: Zuordnungen, Token-IDs und Pruefstatus,
   gebunden an Pruefsummen der konkreten PDFs. Unterschiedliche Testsets haben
   eigene Arbeitsstaende; das Bankprofil kann weiterverwendet werden.
 
-`--state-dir private/andere-bank` trennt Bankprofile. Alte grafische
+`--state-dir private/andere-bank` trennt komplette lokale Sammlungen. Alte grafische
 `review-plan.json`-Dateien bleiben erhalten, werden jedoch nicht automatisch als
 Feldbeispiele interpretiert. PDFs, `private/`, `tmp/` und `output/` sind in
 `.gitignore` ausgeschlossen. Browser/Betriebssystem koennen eigene
@@ -294,3 +297,68 @@ nicht. Die Tests enthalten sowohl diesen Fall als auch eine Schlussseite mit
 vier Summen-/Saldofeldern. Nach Aktualisierung dieser Erkennungsregel muessen
 alte Vorschlaege neu berechnet werden; Beispiele und Bestaetigungen bleiben
 bestehen. Die Diagnose meldet dazu nur Grenz- und Trefferzaehler, keine Werte.
+
+
+## Profilkatalog ab v0.8.0
+
+Das mitgelieferte Bank-Austria-Profil liegt unter
+[`banklens_pdf/profiles/bank-austria.json`](../banklens_pdf/profiles/bank-austria.json)
+im Git. Es ist eine auf numerische Geometrie, feste Feldrollen und Formatklassen
+reduzierte Fassung des lokal angelernten Profils. Private Beispiele und
+Arbeitsstände gehören nicht dazu. Das Profil deckt das angelernte Layout ab;
+Tests mit künstlichen Daten sind kein Nachweis für alle Bank-Austria-Formate.
+
+| Ebene | Identität und Änderung |
+| --- | --- |
+| Anwendung / API | `banklens_pdf/version.py`; v0.8.0 / API 9 führt Katalog und Auswahl ein. |
+| Erkennungslogik | `RECOGNITION_REVISION`; bleibt bei reiner Profilverwaltung unverändert. |
+| Katalogdatei | `catalog_schema_version: 1`; enthält ID, Revision und strukturelles Profil. Unbekannte Versionen werden abgewiesen. |
+| Regelstruktur | `schema_version: 1` mit unterstützter Engine `layout-examples-v1` oder `layout-examples-v2`; ältere Erkennungsrevisionen bleiben bei gleicher Regelstruktur lesbar. |
+| Profilrevision | Positive ganze Zahl pro stabiler ID; jede Änderung erhält eine neue Datei. Mitgelieferte Referenz derzeit `bundled:bank-austria:1`, lokale Referenzen `local:<id>:<revision>`. |
+| Arbeitsbeispiele | Explizite Auswahl `examples`; wird aus dem gespeicherten PDF-Arbeitsstand neu gelernt und ist keine feste Profilrevision. |
+
+Lokale Revisionen liegen im gewählten `--state-dir` unter `profiles/`.
+Profilname ändern erzeugt eine neue ID. Derselbe Name beim bereits ausgewählten
+lokalen Profil erzeugt die nächste Revision dieser ID, auch wenn zuvor eine
+ältere Revision ausgewählt war. Gleiche Anzeigenamen anderer IDs werden nicht
+zusammengeführt. Speichern lernt aus den Arbeitsbeispielen; es ergänzt das
+mitgelieferte Profil nicht automatisch. Ohne passende Beispiele werden nur die
+Zuordnungen gespeichert. Alte Revisionen und die bisherige `field-profile.json`
+bleiben erhalten. Die Auswahl wird pro PDF-Satz gespeichert, nicht global.
+
+Ein explizit gewähltes Profil wird im Nachweis-Modus auch dann verwendet, wenn
+der Arbeitsstand noch Beispiele enthält. **Arbeitsbeispiele** lässt das bisherige
+Lernverhalten ausdrücklich auswählen. Die Feldwerkstatt kann mit
+**Aus Beispielen erkennen** vorübergehend aus ungespeicherten Beispielen lernen;
+die Statusanzeige benennt diese Quelle. Für Zahlungsnachweise zuerst speichern.
+Automatische Vorschläge tragen zusätzlich den SHA-256 ihres Profils. Nach einem
+Wechsel werden unpassende oder noch nicht zugeordnete alte Vorschläge ausgeblendet
+und müssen neu berechnet werden.
+Vorhandene Beispiele und Bestätigungen im PDF-Arbeitsstand bleiben beim Wechsel
+erhalten; sie werden nicht automatisch zu Regeln des ausgewählten Profils.
+
+Ein Profilwechsel erzeugt eigene Sitzungs-URLs und einen leeren Suchindex.
+Der neue Tab muss die Auszüge neu einlesen. Bestehende Tabs, Indizes und Exporte
+bleiben bei ihrer bisherigen Sitzung. Der Nachweis-Modus zeigt zusätzlich das
+Profil des eingelesenen Stands, damit eine spätere Speicherung in der
+Feldwerkstatt nicht als bereits neu eingelesener Stand erscheint.
+
+`GET api/profiles` liefert Auswahl, Herkunft, Revision, Regelstruktur, Engine
+und SHA-256 der Regeln; `POST api/profile/select` nimmt nur eine bekannte
+Profilreferenz an und unterliegt denselben Sitzungs-, Host-, Origin- und
+Request-Header-Prüfungen wie andere Änderungen. Ungültige Katalogeinträge
+werden gezählt und in der Auswahl gemeldet. Ein nicht mehr verfügbares explizit
+gewähltes Profil wird nicht still durch ein anderes ersetzt. Symlinks und zu
+große Profildateien werden abgewiesen.
+
+### Weitere Schritte
+
+Die erste Stufe umfasst Auswahl, lokale Kopien, mehrere Namen, unveränderliche
+Revisionen und kompatibles Lesen des Einzelprofils. Noch offen sind ein geprüfter
+Import/Export, Umbenennen und Löschen einzelner Profile, eine gesonderte
+Profilverwaltung ohne geladenen Auszugsordner sowie automatische Layoutzuordnung.
+Eine spätere automatische Zuordnung braucht einen unabhängigen Strukturvergleich
+und eine sichtbare Bestätigung; der Bankname allein genügt nicht. Neue
+mitgelieferte Revisionen brauchen synthetische Erkennungs- und Schwärzungsfälle
+für die betroffenen Layoutvarianten. Private Trainingsdateien werden auch dafür
+nicht ins Git übernommen.

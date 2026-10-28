@@ -112,9 +112,9 @@ class PreviewTests(unittest.TestCase):
         self.assertTrue(self.review.save_workspace(workspace)["profile_updated"])
         self.assertEqual(self.review.load_workspace(),self.review.validate_workspace(workspace))
         self.assertNotIn(SECRET,self.review.workspace_path.read_text())
-        self.assertNotIn(SECRET,self.review.profile_path.read_text())
+        self.assertNotIn(SECRET,json.dumps(self.review.load_profile()))
         self.assertEqual(self.review.workspace_path.stat().st_mode & 0o777,0o600)
-        self.assertEqual(self.review.profile_path.stat().st_mode & 0o777,0o600)
+        self.assertEqual((self.review.state_directory/"profiles"/self.review.selected_profile.split(":")[1]/"1.json").stat().st_mode & 0o777,0o600)
         self.assertEqual(self.review.load_profile()["engine"],"layout-examples-v2")
 
     def test_legacy_character_ids_and_owner_and_continuation_metadata_survive(self):

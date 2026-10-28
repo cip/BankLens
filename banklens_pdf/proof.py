@@ -67,9 +67,7 @@ HEADER_FIELD_OPTIONS={
 def proof_profile_context(review):
     """Return the same local profile and annotations used for fresh indexing."""
     workspace=review.load_workspace()
-    profile=review.learn(workspace)
-    if not any(a["kind"]=="example" for d in workspace["documents"] for a in d["annotations"]) and review.profile_path.is_file():
-        profile=review.load_profile()
+    profile=review.load_profile()
     return profile,workspace
 
 
@@ -476,6 +474,7 @@ class ProofService:
             profile,workspace=None,None
         with self.lock:
             self.profile,self.workspace=profile,workspace
+            self.profile_identity=self.review.profiles.metadata(self.review.selected_profile,profile) if profile else None
             self.redaction_fields=redaction_field_metadata(profile or {})
 
     def selected_redaction_fields(self,fields):
@@ -493,6 +492,7 @@ class ProofService:
     def state(self):
         with self.lock:
             return {"index":dict(self.status),"export":dict(self.export_status),
+                    "profile":self.profile_identity,
                     "redaction_fields":[dict(option) for option in self.redaction_fields]}
 
     def start_index(self):
