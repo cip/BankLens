@@ -17,6 +17,20 @@ def read_json(path):
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+def profile_digest(profile):
+    # JSON numbers have no integer/float distinction in the browser. Identity
+    # must survive JSON.stringify turning 0.0 into 0 (including negative zero).
+    def canonical(value):
+        if isinstance(value,dict):
+            return {key:canonical(item) for key,item in value.items()}
+        if isinstance(value,list):
+            return [canonical(item) for item in value]
+        if type(value) is float and value.is_integer():
+            return int(value)
+        return value
+    return hashlib.sha256(json.dumps(canonical(profile),sort_keys=True).encode()).hexdigest()
+
+
 class ProfileStore:
     def __init__(self, review):
         self.review = review
@@ -50,7 +64,7 @@ class ProfileStore:
         return {'reference': reference, 'name': profile['profile_name'],
                 'origin': origin, 'revision': int(reference.split(':')[-1]) if ':' in reference else None,
                 'schema_version': profile['schema_version'], 'engine': profile['engine'],
-                'sha256': hashlib.sha256(json.dumps(profile, sort_keys=True).encode()).hexdigest()}
+                'sha256': profile_digest(profile)}
 
     def catalog(self):
         references = ['examples', 'bundled:bank-austria:1']

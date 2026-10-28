@@ -66,6 +66,16 @@ class ProfileTests(unittest.TestCase):
         self.assertTrue(outcome['carry'])
         self.assertFalse(self.review.state_directory.exists())
 
+    def test_profile_identity_survives_browser_json_number_round_trip(self):
+        profile=self.review.learn(self.workspace())
+        profile['amount_column']=[0.0,1.0]
+        # Browser JSON.stringify emits integral floats as integers (0.0 -> 0).
+        browser_profile=json.loads(json.dumps(profile),parse_float=lambda value:
+            int(float(value)) if float(value).is_integer() else float(value))
+        self.assertEqual(profile,browser_profile)
+        self.assertEqual(self.review.profiles.metadata('examples',profile)['sha256'],
+                         self.review.profiles.metadata('examples',browser_profile)['sha256'])
+
     def test_revisions_copies_restart_and_old_session_identity(self):
         bundled_bytes=(BUNDLED/'bank-austria.json').read_bytes()
         self.review.save_workspace(self.workspace())
