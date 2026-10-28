@@ -451,8 +451,9 @@ def open_directory(value, state_directory):
 
 class ReviewSession:
     """Each opened folder has its own URLs, review and in-memory proof index."""
-    def __init__(self,review,token):
+    def __init__(self,review,token,state_directory=None):
         self.review=review
+        self.state_directory=getattr(review,"state_directory",None) if review is not None else Path(state_directory).resolve()
         self.prefix=f"/{token}/"
         self.proof_service=None
         self.proof_lock=threading.Lock()
@@ -465,16 +466,18 @@ class ReviewSession:
         return self.proof_service
 
     def source(self):
+        if self.review is None:
+            return {"directory":"","document_count":0,"page_count":0}
         return {"directory":str(self.review.directory),"document_count":len(self.review.documents),
                 "page_count":sum(d["page_count"] for d in self.review.documents)}
 
 
-def make_server(review: Review, port=0, token=None,restored_reviews=None):
+def make_server(review: Review | None, port=0, token=None,restored_reviews=None,state_directory=None):
     token = token or secrets.token_urlsafe(32)
     if not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",token):
         raise ValueError("invalid_session_token")
     prefix = f"/{token}/"
-    sessions={token:ReviewSession(review,token)}
+    sessions={token:ReviewSession(review,token,state_directory)}
     # A local restart can retain open folder URLs without exposing their paths.
     for restored_token,restored_review in (restored_reviews or {}).items():
         if restored_token==token or not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",restored_token):
@@ -536,10 +539,19 @@ def make_server(review: Review, port=0, token=None,restored_reviews=None):
                 if route in assets:
                     name, mime = assets[route]
                     return self.respond(200, (WEB / name).read_bytes(), mime)
-                if route == "api/documents":
-                    return self.json_response(200, review.public_documents())
                 if route == "api/source":
                     return self.json_response(200,session.source())
+                if review is None:
+                    if route == "api/config":
+                        return self.json_response(200,{"fields":FIELDS,"profile_available":False,"app_version":APP_VERSION,"api_version":API_VERSION,"recognition_revision":RECOGNITION_REVISION})
+                    if route == "api/workspace":
+                        return self.json_response(200,{"documents":[]})
+                    if route == "api/proof/status":
+                        from .proof import redaction_field_metadata
+                        return self.json_response(200,{"index":{"phase":"empty"},"export":{"phase":"idle"},"redaction_fields":redaction_field_metadata({})})
+                    return self.json_response(409,{"error":"no_directory"})
+                if route == "api/documents":
+                    return self.json_response(200, review.public_documents())
                 if route == "api/plan":
                     return self.json_response(200, review.load())
                 if route == "api/workspace":
@@ -602,7 +614,7 @@ def make_server(review: Review, port=0, token=None,restored_reviews=None):
                         with sessions_lock:
                             if len(sessions)>=64:
                                 raise DirectoryError("too_many_directories")
-                        opened=open_directory(payload.get("directory"),review.state_directory)
+                        opened=open_directory(payload.get("directory"),session.state_directory)
                         opened_token=secrets.token_urlsafe(32)
                         opened_session=ReviewSession(opened,opened_token)
                         with sessions_lock:
@@ -612,6 +624,8 @@ def make_server(review: Review, port=0, token=None,restored_reviews=None):
                         return self.json_response(200,{**opened_session.source(),"session_path":opened_session.prefix})
                     except DirectoryError as error:
                         return self.json_response(400,{"error":str(error)})
+                if review is None:
+                    return self.json_response(409,{"error":"no_directory"})
                 if self.path in proof_routes:
                     from .proof import ProofError
                     try:
@@ -677,9 +691,9 @@ def make_server(review: Review, port=0, token=None,restored_reviews=None):
 
 
 def serve(directory, state_directory, port=0, token=None):
-    review = Review(directory, state_directory)
-    server, url = make_server(review, port, token)
-    print(json.dumps({"preview_url": url, "document_count": len(review.documents),
+    review = Review(directory, state_directory) if directory is not None else None
+    server, url = make_server(review, port, token, state_directory=state_directory)
+    print(json.dumps({"preview_url": url, "document_count": len(review.documents) if review else 0,
                       "anonymization_performed": False}), flush=True)
     try:
         server.serve_forever()

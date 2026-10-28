@@ -54,6 +54,37 @@ class SourceTests(unittest.TestCase):
                 open_directory(path,self.state)
             self.assertEqual(str(caught.exception),expected)
 
+    def test_empty_start_opens_a_separate_folder_session(self):
+        server,url=make_server(None,state_directory=self.state)
+        thread=threading.Thread(target=server.serve_forever,daemon=True)
+        thread.start()
+        prefix="/"+url.split("/",3)[3]
+        origin=f"http://127.0.0.1:{server.server_port}"
+        def request(route,payload=None,origin_value=None):
+            connection=http.client.HTTPConnection("127.0.0.1",server.server_port,timeout=10)
+            connection.request("GET" if payload is None else "POST",route,None if payload is None else json.dumps(payload),
+                {"Content-Type":"application/json","Origin":origin_value or origin,"X-BankLens-Request":"1"})
+            response=connection.getresponse()
+            result=response.status,response.read()
+            connection.close()
+            return result
+        try:
+            self.assertEqual(request(prefix)[0],200)
+            self.assertEqual(json.loads(request(prefix+"api/source")[1])["document_count"],0)
+            self.assertEqual(json.loads(request(prefix+"api/proof/status")[1])["index"]["phase"],"empty")
+            payload={"directory":str(self.source)}
+            self.assertEqual(request(prefix+"api/source/load",payload,"https://evil.invalid")[0],403)
+            code,data=request(prefix+"api/source/load",payload)
+            self.assertEqual(code,200)
+            opened=json.loads(data)
+            self.assertNotEqual(opened["session_path"],prefix)
+            self.assertEqual(json.loads(request(opened["session_path"]+"api/source")[1])["document_count"],1)
+            self.assertEqual(json.loads(request(prefix+"api/source")[1])["document_count"],0)
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+            server.server_close()
+
     def test_folder_sessions_are_independent_and_keep_access_checks(self):
         review=Review(self.source,self.state)
         restored_token="restored-folder-session-0123456789abcdef"

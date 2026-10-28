@@ -51,13 +51,13 @@ python3 -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-Starte BankLens mit einem Ordner, in dem deine PDF-Kontoauszüge liegen:
+Starte BankLens:
 
 ```sh
-sh tools/pdf-toolkit preview "/absoluter/pfad/zu/deinen-kontoauszuegen"
+sh tools/pdf-toolkit preview
 ```
 
-Öffne die im Terminal angezeigte lokale URL im Browser. Das Terminal bleibt während der Verwendung geöffnet; mit `Ctrl+C` beendest du den Server.
+Öffne die im Terminal angezeigte lokale URL im Browser und wähle dort deinen Auszugsordner. Du kannst den Ordner alternativ beim Start als Argument angeben. Das Terminal bleibt während der Verwendung geöffnet; mit `Ctrl+C` beendest du den Server.
 
 Die Befehle oben sind für macOS und Linux.
 
@@ -70,7 +70,7 @@ Wechsle nach dem Herunterladen oder Klonen in den Projektordner und führe dort 
 py -3 -m venv .venv
 .venv\Scripts\activate.bat
 python -m pip install -r requirements.txt
-python -m banklens_pdf preview "C:\Pfad\zu\deinen\Kontoauszuegen"
+python -m banklens_pdf preview
 ```
 
 </details>

@@ -120,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
     inspect.add_argument("directory", type=Path)
     inspect.add_argument("--report", type=Path, help="New JSON file outside the input directory")
     preview = commands.add_parser("preview", help="Local browser preview and private redaction plan")
-    preview.add_argument("directory", type=Path)
+    preview.add_argument("directory", type=Path, nargs="?")
     preview.add_argument("--state-dir", type=Path, default=Path("private/review"))
     preview.add_argument("--port", type=int, default=0)
     preview.add_argument("--session-token", help=argparse.SUPPRESS)
