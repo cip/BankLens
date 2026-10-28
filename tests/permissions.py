@@ -2,6 +2,7 @@
 import json
 import os
 import subprocess
+import shutil
 
 
 def assert_private(test, path):
@@ -18,9 +19,8 @@ def assert_private(test, path):
       @{ protected=$acl.AreAccessRulesProtected; rules=$rules } | ConvertTo-Json -Depth 4 -Compress
     '''
     env = dict(os.environ, BANKLENS_TEST_FILE=str(path))
-    # The CI shell is PowerShell 7; its module path breaks Windows PowerShell 5.
-    env.pop("PSModulePath", None)
-    result = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+    executable = shutil.which("pwsh") or "powershell"
+    result = subprocess.run([executable, "-NoProfile", "-NonInteractive", "-Command", script],
                             capture_output=True, text=True, env=env, check=False)
     test.assertEqual(result.returncode, 0, result.stderr)
     acl = json.loads(result.stdout)
