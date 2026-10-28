@@ -1,0 +1,58 @@
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from banklens_pdf import desktop
+
+
+class DesktopTests(unittest.TestCase):
+    def test_state_requires_absolute_local_app_data(self):
+        with patch.dict(os.environ, {'LOCALAPPDATA': 'relative'}):
+            with self.assertRaises(RuntimeError):
+                desktop.state_directory()
+        with tempfile.TemporaryDirectory() as root, patch.dict(os.environ, {'LOCALAPPDATA': root}):
+            self.assertEqual(desktop.state_directory(), Path(root) / 'BankLens' / 'state')
+
+    def test_window_lifecycle_closes_server(self):
+        class Server:
+            def __init__(self):
+                self.stopped = False
+                self.closed = False
+            def serve_forever(self):
+                pass
+            def shutdown(self):
+                self.stopped = True
+            def server_close(self):
+                self.closed = True
+        class Dialog:
+            FOLDER = 1
+        class Window:
+            def create_file_dialog(self, kind):
+                self.kind = kind
+                return ('C:/synthetic',)
+        class Webview:
+            FileDialog = Dialog
+            settings = {}
+            window = Window()
+            def create_window(self, title, url, **kwargs):
+                self.url = url
+                return self.window
+            def start(self, **kwargs):
+                self.options = kwargs
+        server, view = Server(), Webview()
+        captured = {}
+        def make_server(review, **kwargs):
+            captured.update(kwargs)
+            return server, 'http://127.0.0.1:1234/token/'
+        with tempfile.TemporaryDirectory() as root, patch.dict(os.environ, {'LOCALAPPDATA': root}), patch.object(desktop, 'make_server', make_server):
+            desktop.run(view)
+        self.assertTrue(server.stopped and server.closed)
+        self.assertEqual(captured['directory_picker'](), 'C:/synthetic')
+        self.assertEqual(view.options['gui'], 'edgechromium')
+        self.assertFalse(view.settings['ALLOW_FILE_URLS'])
+
+
+if __name__ == '__main__':
+    unittest.main()

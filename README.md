@@ -153,3 +153,14 @@ Wenn BankLens dir Arbeit erspart, kannst du die Weiterentwicklung mit einem frei
 BankLens steht unter [GPL-3.0-only](LICENSE). Informationen zu Copyright und zusätzlicher Lizenzierung eigener Beiträge stehen in [COPYRIGHT.md](COPYRIGHT.md).
 
 [^ki-entwicklung]: BankLens wurde mit Unterstützung von KI entwickelt. Die Verarbeitung deiner Kontoauszüge erfolgt lokal und ohne KI.
+
+### Windows-Desktop (in Entwicklung)
+
+Der Windows-Installer wird im CI-Lauf als Artefakt gebaut; er ist noch nicht als
+verifiziertes Release freigegeben. Er benötigt die Microsoft WebView2 Runtime.
+Die Installation erfolgt pro Benutzer unter `%LOCALAPPDATA%\Programs\BankLens`.
+Arbeitsstände und erzeugte Kopien liegen unter `%LOCALAPPDATA%\BankLens\state`;
+dieser Ordner bleibt bei Deinstallation erhalten. Der Auszugsordner muss davon
+getrennt sein. Installer und Anwendung sind derzeit nicht codesigniert; Windows
+kann daher eine Warnung anzeigen. Installation, Upgrade, Deinstallation, Dialoge
+und PDF-Downloads müssen noch auf Windows mit künstlichen PDFs geprüft werden.

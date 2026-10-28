@@ -502,7 +502,7 @@ class ReviewSession:
                 "page_count":sum(d["page_count"] for d in self.review.documents)}
 
 
-def make_server(review: Review | None, port=0, token=None,restored_reviews=None,state_directory=None):
+def make_server(review: Review | None, port=0, token=None,restored_reviews=None,state_directory=None, directory_picker=None):
     token = token or secrets.token_urlsafe(32)
     if not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",token):
         raise ValueError("invalid_session_token")
@@ -635,7 +635,7 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                     try:
                         if not isinstance(payload,dict):
                             raise DirectoryError("invalid_directory")
-                        directory=choose_directory()
+                        directory=(directory_picker or choose_directory)()
                         if directory is None:
                             return self.json_response(200,{"cancelled":True})
                         return self.json_response(200,{"directory":directory,"cancelled":False})
