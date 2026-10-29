@@ -90,6 +90,7 @@ class InspectTests(unittest.TestCase):
             directory = Path(folder)
             original = directory / "original.PDF"
             original.write_bytes(b"dummy")
+            (directory / "._original.PDF").write_bytes(b'\x00\x05\x16\x07' + bytes(32))
             (directory / "link.pdf").symlink_to(original)
             nested = directory / "nested"
             nested.mkdir()

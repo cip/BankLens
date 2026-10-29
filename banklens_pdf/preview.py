@@ -25,7 +25,7 @@ import threading
 
 import pypdfium2 as pdfium
 
-from .inspect import quiet_parser
+from .inspect import is_appledouble, quiet_parser
 from .fields import FIELDS, compile_profile, extract_layout, recognize_page, transaction_blocks, block_body_tokens, repair_missing_parents
 from .version import APP_VERSION, API_VERSION, RECOGNITION_REVISION
 from .profiles import ProfileStore, read_json
@@ -83,7 +83,7 @@ class Review:
         self.state_directory = state_directory
         self.plan_path = state_directory / "review-plan.json"
         paths = sorted((p for p in directory.iterdir() if p.suffix.lower() == ".pdf"
-                        and not p.is_symlink() and p.is_file()), key=lambda p: p.name)
+                        and not p.is_symlink() and p.is_file() and not is_appledouble(p)), key=lambda p: p.name)
         if not paths:
             raise ValueError("no_documents")
         for index, path in enumerate(paths, start=1):

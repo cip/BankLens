@@ -46,6 +46,23 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(list(opened.paths.values()),[self.second/"input.PDF"])
         self.assertFalse(self.state.exists())
 
+    def test_macos_appledouble_sidecar_is_not_treated_as_a_pdf(self):
+        sidecar = self.source/'._input.pdf'
+        sidecar.write_bytes(b'\x00\x05\x16\x07' + bytes(32))
+        opened = open_directory(str(self.source), self.state)
+        self.assertEqual(list(opened.paths.values()), [self.source/'input.pdf'])
+        self.assertEqual(sidecar.read_bytes(), b'\x00\x05\x16\x07' + bytes(32))
+        only_sidecars = self.root/'only-sidecars'
+        only_sidecars.mkdir()
+        (only_sidecars/'._input.pdf').write_bytes(sidecar.read_bytes())
+        with self.assertRaises(DirectoryError) as caught:
+            open_directory(str(only_sidecars), self.state)
+        self.assertEqual(str(caught.exception), 'no_pdfs')
+        valid_named_sidecar = self.root/'real-pdf-with-prefix'
+        valid_named_sidecar.mkdir()
+        (valid_named_sidecar/'._valid.pdf').write_bytes(self.original)
+        self.assertEqual(len(open_directory(str(valid_named_sidecar), self.state).documents), 1)
+
     def test_open_folder_without_standard_output_handles(self):
         script = '''
 import os, sys

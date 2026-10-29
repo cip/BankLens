@@ -55,6 +55,7 @@ def self_test():
         pdf = canvas.Canvas(str(source / 'synthetic.pdf'))
         pdf.drawString(40, 750, 'Synthetic test')
         pdf.save()
+        (source / '._synthetic.pdf').write_bytes(b'\x00\x05\x16\x07' + bytes(32))
         review = open_directory(str(source), root / 'state')
         if (len(review.documents) != 1 or review.documents[0]['page_count'] != 1
                 or review.load_profile()['profile_name'] != 'Bank Austria'
