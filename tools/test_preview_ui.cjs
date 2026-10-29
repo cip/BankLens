@@ -20,7 +20,9 @@ const {chromium}=require(process.env.BANKLENS_PLAYWRIGHT_PATH||'playwright');
     await page.goto(url);await loaded();
     await page.waitForFunction(()=>!document.querySelector('#profile-select').disabled);
     assert.equal(await page.locator('#profile-select').inputValue(),'bundled:bank-austria:1');
-    assert.match(await page.locator('#profile-status').textContent(),/Bank Austria.*Mitgeliefert.*Revision 1/);
+    assert.equal(await page.locator('#profile-select option[value="examples"]').textContent(),'Eigene Beispiele aus diesem Arbeitsstand');
+    assert.equal(await page.locator('#profile-select option[value="bundled:bank-austria:1"]').textContent(),'Bank Austria · Mitgeliefertes Profil · Revision 1');
+    assert.match(await page.locator('#profile-status').textContent(),/Bank Austria.*Mitgeliefertes Profil.*Revision 1/);
     const word=text=>page.locator('.token').filter({hasText:new RegExp('^'+text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*$')}).first();
     async function example(text,field,whole=false){await word(text).click();if(whole)await page.locator('#whole-line').click();await page.locator('#field').selectOption(field);await page.locator('#add-example').click();}
     // A real mouse drag creates a native browser text selection. Word snapping
@@ -81,6 +83,13 @@ const {chromium}=require(process.env.BANKLENS_PLAYWRIGHT_PATH||'playwright');
     await oldTab.waitForFunction(()=>!document.querySelector('#profile-select').disabled);
     assert.equal(await oldTab.locator('#profile-select').inputValue(),catalog.selected_profile);
     await oldTab.close();
+    await page.locator('#profile-select').selectOption('examples');
+    const bundledUrl=page.url();
+    await page.locator('#profile-switch').click();
+    await page.waitForURL(current=>current.href!==bundledUrl);await loaded();
+    await page.waitForFunction(()=>!document.querySelector('#profile-select').disabled);
+    assert.equal(await page.locator('#profile-select').inputValue(),'examples');
+    assert.match(await page.locator('#profile-status').textContent(),/Verwendet: Eigene Beispiele aus diesem Arbeitsstand/);
     assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
     console.log(JSON.stringify({browser_checks:'passed',native_text_selection:true,examples:5,recognized_rows:6,save_reload_undo_rejection:true,external_requests:0,page_errors:0,artificial_inputs_only:true}));
   }finally{if(browser)await browser.close();server.kill('SIGTERM');}
