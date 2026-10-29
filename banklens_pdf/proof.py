@@ -272,6 +272,22 @@ def booking_day(value,statement_date=None):
     return result
 
 
+def booking_date_without_year(value):
+    """Recognize a valid day/month value that has no year component."""
+    if not isinstance(value,str):
+        return False
+    raw=value.strip().rstrip(".").strip()
+    match=re.fullmatch(r"(\d{1,2})\s*[./]\s*(\d{1,2})",raw)
+    if not match:
+        return False
+    day,month=map(int,match.groups())
+    try:
+        date(2000,month,day)
+    except ValueError:
+        return False
+    return True
+
+
 def statement_date_for_page(layout,annotations):
     """Read a profiled statement date or a clearly labeled header date."""
     for annotation in annotations:
@@ -638,15 +654,20 @@ class ProofService:
             if self.status["phase"]!="ready":
                 raise ProofError("index_not_ready")
             matches=[]
+            unmatched_booking_dates=0
             for record in self.records.values():
                 if not all(term in record["search_text"] for term in terms):
                     continue
                 if date_from or date_to:
                     day=record.get("booking_day") or booking_day(record["booking_date"])
-                    if day is None or (date_from and day<date_from) or (date_to and day>date_to):
+                    if day is None:
+                        unmatched_booking_dates+=booking_date_without_year(record["booking_date"])
+                        continue
+                    if (date_from and day<date_from) or (date_to and day>date_to):
                         continue
                 matches.append(record)
-            return {"total":len(matches),"results":[public_record(r) for r in matches[:500]],"limit":500}
+            return {"total":len(matches),"results":[public_record(r) for r in matches[:500]],"limit":500,
+                    "unmatched_booking_dates":unmatched_booking_dates}
 
     def selection(self,ids):
         if not isinstance(ids,list) or not ids or len(ids)>500 or any(not isinstance(i,str) for i in ids) or len(set(ids))!=len(ids):

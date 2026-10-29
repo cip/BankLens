@@ -81,6 +81,16 @@ const {chromium}=require(process.env.BANKLENS_PLAYWRIGHT_PATH||'playwright');
     await page.locator('#booking-date-to').fill('2026-10-04');
     await page.waitForFunction(()=>document.querySelectorAll('#result-rows tr').length===4);
     assert.match(await page.locator('#result-count').textContent(),/4 Treffer/);
+    assert.equal(await page.locator('#booking-date-warning').isVisible(),false);
+    await page.route('**/api/proof/search',async route=>{
+      const filters=route.request().postDataJSON();
+      if(filters.booking_date_from==='2026-10-04'&&filters.booking_date_to==='2026-10-05')await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({total:0,results:[],limit:500,unmatched_booking_dates:2})});
+      else await route.continue();
+    });
+    await page.locator('#booking-date-to').fill('2026-10-05');
+    await page.waitForFunction(()=>document.querySelector('#booking-date-warning').textContent.includes('2 Buchungen ohne erkanntes Jahr'));
+    assert.equal(await page.locator('#booking-date-warning').isVisible(),true);
+    await page.unroute('**/api/proof/search');
     await page.locator('#booking-date-from').fill('2026-10-05');
     await page.locator('#booking-date-to').fill('2026-10-04');
     await page.waitForFunction(()=>document.querySelector('#status').classList.contains('error'));

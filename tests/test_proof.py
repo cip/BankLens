@@ -271,11 +271,15 @@ class ProofTests(unittest.TestCase):
         result=service.search("",booking_date_from="2026-10-02",booking_date_to="2026-10-04")
         self.assertEqual(result["total"],2)
         self.assertEqual([record["id"] for record in result["results"]],["start","end"])
+        self.assertEqual(result["unmatched_booking_dates"],1)
         exact=service.search("clinic",booking_date_from="2026-10-02",booking_date_to="2026-10-02")
         self.assertEqual(exact["total"],1)
-        self.assertEqual(service.search("clinic",booking_date_from="2026-10-04")["total"],1)
+        self.assertEqual(exact["unmatched_booking_dates"],1)
+        self.assertEqual(service.search("market",booking_date_from="2026-10-04")["total"],1)
         self.assertEqual(service.search("clinic",booking_date_to="2026-10-02")["total"],2)
-        self.assertEqual(service.search("")["total"],5)
+        unfiltered=service.search("")
+        self.assertEqual(unfiltered["total"],5)
+        self.assertEqual(unfiltered["unmatched_booking_dates"],0)
         with self.assertRaisesRegex(ProofError,"invalid_date_filter"):
             service.search("",booking_date_from="2026-02-30")
         with self.assertRaisesRegex(ProofError,"invalid_date_range"):
