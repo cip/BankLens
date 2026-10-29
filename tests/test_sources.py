@@ -1,10 +1,15 @@
 """Folder opening uses artificial PDFs only; old session URLs stay isolated."""
 import http.client
+import errno
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from banklens_pdf.preview import DirectoryError, Review, ReviewSession, make_server, open_directory
 from test_proof import artificial_pdf
@@ -39,6 +44,31 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(opened.documents[0]["page_count"],3)
         self.assertEqual(list(opened.paths.values()),[self.second/"input.PDF"])
         self.assertFalse(self.state.exists())
+
+    def test_open_folder_without_standard_output_handles(self):
+        script = '''
+import os, sys
+from pathlib import Path
+from banklens_pdf.preview import open_directory
+os.close(1)
+os.close(2)
+review = open_directory(sys.argv[1], Path(sys.argv[2]))
+assert len(review.documents) == 1
+assert review.documents[0]['page_count'] == 3
+'''
+        result=subprocess.run([sys.executable,'-c',script,str(self.source),str(self.state)],
+                              stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        self.assertEqual(result.returncode,0)
+
+    def test_open_folder_when_windowed_runtime_has_unavailable_stdout(self):
+        dup=os.dup
+        def windowed_dup(fd):
+            if fd == 1:
+                raise OSError(errno.EBADF, 'synthetic unavailable handle')
+            return dup(fd)
+        with patch('banklens_pdf.preview.os.dup',side_effect=windowed_dup):
+            opened=open_directory(str(self.source),self.state)
+        self.assertEqual(opened.documents[0]['page_count'],3)
 
     def test_session_uses_explicit_output_directory_and_rejects_source_overlap(self):
         output = self.state / "exports"

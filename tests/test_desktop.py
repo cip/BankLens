@@ -8,6 +8,9 @@ from banklens_pdf import desktop
 
 
 class DesktopTests(unittest.TestCase):
+    def test_self_test_uses_a_synthetic_pdf_and_bundled_profile(self):
+        desktop.self_test()
+
     def test_state_requires_absolute_local_app_data(self):
         with patch.dict(os.environ, {'LOCALAPPDATA': 'relative'}):
             with self.assertRaises(RuntimeError):

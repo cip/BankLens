@@ -1,6 +1,8 @@
 """Windows desktop entry point for the existing loopback application."""
 import os
 from pathlib import Path
+import sys
+import tempfile
 import threading
 
 from .preview import DirectoryError, make_server
@@ -40,6 +42,31 @@ def run(webview):
         worker.join()
 
 
+def self_test():
+    """Exercise the frozen application's PDF and profile resources with artificial data."""
+    from reportlab.pdfgen import canvas
+    from .preview import open_directory
+
+    with tempfile.TemporaryDirectory() as root:
+        root = Path(root)
+        source = root / 'input'
+        source.mkdir()
+        pdf = canvas.Canvas(str(source / 'synthetic.pdf'))
+        pdf.drawString(40, 750, 'Synthetic test')
+        pdf.save()
+        review = open_directory(str(source), root / 'state')
+        if (len(review.documents) != 1 or review.documents[0]['page_count'] != 1
+                or review.load_profile()['profile_name'] != 'Bank Austria'
+                or not review.render('document-001', 1).startswith(b'\x89PNG\r\n\x1a\n')):
+            raise RuntimeError('desktop_self_test_failed')
+
+
 def main():
+    if sys.argv[1:] == ['--self-test']:
+        try:
+            self_test()
+        except Exception:
+            raise SystemExit(1) from None
+        return
     import webview
     run(webview)

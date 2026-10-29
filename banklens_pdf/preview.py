@@ -7,6 +7,7 @@ only after selection. Original images and document strings are never logged.
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
@@ -44,13 +45,20 @@ def quiet_renderer():
     # PDFium and process-wide diagnostic redirection must remain serialized,
     # while idle browser sockets must never block unrelated HTTP requests.
     with RENDER_LOCK, quiet_parser(), open(os.devnull, "w") as sink:
-        copies = [os.dup(fd) for fd in (1, 2)]
+        copies = []
         try:
             for fd in (1, 2):
+                try:
+                    copy = os.dup(fd)
+                except OSError as error:
+                    if error.errno == errno.EBADF:
+                        continue
+                    raise
+                copies.append((fd, copy))
                 os.dup2(sink.fileno(), fd)
             yield
         finally:
-            for fd, copy in zip((1, 2), copies):
+            for fd, copy in copies:
                 os.dup2(copy, fd)
                 os.close(copy)
 

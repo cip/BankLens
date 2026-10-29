@@ -9,5 +9,7 @@ $bundledProfile = 'dist/BankLens/_internal/banklens_pdf/profiles/bank-austria.js
 if (!(Test-Path $bundledProfile) -or (Get-FileHash $sourceProfile).Hash -ne (Get-FileHash $bundledProfile).Hash) {
     throw 'Bundled bank profile is missing or differs from the source.'
 }
+$smoke = Start-Process -FilePath (Resolve-Path 'dist/BankLens/BankLens.exe') -ArgumentList '--self-test' -Wait -PassThru
+if ($smoke.ExitCode -ne 0) { throw "Bundled application self-test failed: exit $($smoke.ExitCode)" }
 & makensis packaging/windows/BankLens.nsi
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
