@@ -251,6 +251,35 @@ class ProofTests(unittest.TestCase):
         with self.assertRaises(ProofError):
             service.search('"unfinished')
 
+    def test_booking_date_filter_is_inclusive_and_combines_with_text_search(self):
+        records=[]
+        for identity,booking_date,text in [
+            ("before","2026-10-01","synthetic clinic"),
+            ("start","02.10.2026","synthetic clinic"),
+            ("end","04.10.2026","synthetic market"),
+            ("after","2026-10-05","synthetic clinic"),
+            ("yearless","03.10","synthetic clinic"),
+        ]:
+            records.append({"id":identity,"document_id":"document-001","booking_date":booking_date,
+                "value_date":"","amount":"10,00","text":text,"complete":True,
+                "search_text":text,"pieces":[{"page":1}]})
+        service=ProofService(self.review,self.root/"date-filter-exports")
+        service.records={record["id"]:record for record in records}
+        service.status["phase"]="ready"
+
+        result=service.search("",booking_date_from="2026-10-02",booking_date_to="2026-10-04")
+        self.assertEqual(result["total"],2)
+        self.assertEqual([record["id"] for record in result["results"]],["start","end"])
+        exact=service.search("clinic",booking_date_from="2026-10-02",booking_date_to="2026-10-02")
+        self.assertEqual(exact["total"],1)
+        self.assertEqual(service.search("clinic",booking_date_from="2026-10-04")["total"],1)
+        self.assertEqual(service.search("clinic",booking_date_to="2026-10-02")["total"],2)
+        self.assertEqual(service.search("")["total"],5)
+        with self.assertRaisesRegex(ProofError,"invalid_date_filter"):
+            service.search("",booking_date_from="2026-02-30")
+        with self.assertRaisesRegex(ProofError,"invalid_date_range"):
+            service.search("",booking_date_from="2026-10-05",booking_date_to="2026-10-04")
+
     def test_mask_starts_black_and_never_keeps_other_rows_or_balance(self):
         records=index_bookings(self.review)
         wanted=next(r for r in records if "CONTINUED_TARGET" in r["text"])
@@ -412,6 +441,9 @@ class ProofTests(unittest.TestCase):
             result=json.loads(data)["results"][0]
             self.assertEqual(result["pages"],[1,2])
             self.assertNotIn("PRIVATE_FILENAME",data.decode())
+            invalid_range=request(prefix+"api/proof/search",{"query":"",
+                "booking_date_from":"2026-10-05","booking_date_to":"2026-10-04"})
+            self.assertEqual(invalid_range[0],400)
             code,headers,data=request(prefix+"api/proof/preview",{"selected_ids":[result["id"]],"document_id":"document-001","page":1})
             self.assertEqual(code,200)
             self.assertEqual(headers["Content-Type"],"image/png")

@@ -66,6 +66,10 @@ muessen getrennt bleiben.
    Buchungstext. Die Suche ignoriert Gross-/Kleinschreibung; Anfuehrungszeichen
    suchen eine zusammenhaengende Phrase. Leere Suche zeigt alle Buchungen.
    Nachgestellte Minuszeichen sowie Suchwerte wie `-18,00` funktionieren.
+   **Buchungszeitraum** grenzt die Treffer per Datumspicker auf das erkannte
+   Buchungsdatum ein; Start- und Endtag sind eingeschlossen. Ein fehlendes oder
+   unvollstaendiges Jahr kann keinem Zeitraum sicher zugeordnet werden und wird
+   bei gesetzter Grenze ausgelassen. Text- und Datumsfilter gelten gemeinsam.
 3. Passende Treffer sind vorausgewaehlt und lassen sich einzeln abwaehlen.
    Verknuepfte Fortsetzungen werden als eine Buchung mit mehreren Originalseiten
    angezeigt und durchsucht. Ungeklaerte Fortsetzungen sind sichtbar, aber fuer

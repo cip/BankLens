@@ -8,6 +8,7 @@ attachments are transferred.
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import date
 import hashlib
 import io
 import math
@@ -215,6 +216,38 @@ def query_terms(query):
         return [normalize(term) for term in shlex.split(query) if normalize(term)]
     except ValueError:
         raise ProofError("unclosed_quote") from None
+
+
+def filter_date(value):
+    """Parse the ISO date supplied by the browser's date picker."""
+    if value is None or value == "":
+        return None
+    if not isinstance(value,str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}",value):
+        raise ProofError("invalid_date_filter")
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise ProofError("invalid_date_filter") from None
+
+
+def booking_day(value):
+    """Return a booking date only when the recognized value contains a year."""
+    if not isinstance(value,str):
+        return None
+    raw=value.strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}",raw):
+        try:
+            return date.fromisoformat(raw)
+        except ValueError:
+            return None
+    match=re.fullmatch(r"(\d{1,2})\s*[./]\s*(\d{1,2})\s*[./]\s*(\d{4})",raw)
+    if not match:
+        return None
+    day,month,year=map(int,match.groups())
+    try:
+        return date(year,month,day)
+    except ValueError:
+        return None
 
 
 def words_text(layout,ids):
@@ -532,12 +565,24 @@ class ProofService:
             with self.lock:
                 self.status.update(phase="error",error=code)
 
-    def search(self,query):
+    def search(self,query,booking_date_from=None,booking_date_to=None):
         terms=query_terms(query)
+        date_from=filter_date(booking_date_from)
+        date_to=filter_date(booking_date_to)
+        if date_from and date_to and date_from>date_to:
+            raise ProofError("invalid_date_range")
         with self.lock:
             if self.status["phase"]!="ready":
                 raise ProofError("index_not_ready")
-            matches=[record for record in self.records.values() if all(term in record["search_text"] for term in terms)]
+            matches=[]
+            for record in self.records.values():
+                if not all(term in record["search_text"] for term in terms):
+                    continue
+                if date_from or date_to:
+                    day=booking_day(record["booking_date"])
+                    if day is None or (date_from and day<date_from) or (date_to and day>date_to):
+                        continue
+                matches.append(record)
             return {"total":len(matches),"results":[public_record(r) for r in matches[:500]],"limit":500}
 
     def selection(self,ids):

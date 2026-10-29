@@ -710,7 +710,8 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                             service.cancel.set()
                             return self.json_response(200,{"cancel_requested":True})
                         if self.path.endswith("/search"):
-                            return self.json_response(200,service.search(payload.get("query","")))
+                            return self.json_response(200,service.search(payload.get("query",""),
+                                payload.get("booking_date_from"),payload.get("booking_date_to")))
                         if self.path.endswith("/preview"):
                             return self.respond(200,service.preview(payload.get("selected_ids"),payload.get("document_id"),payload.get("page"),payload.get("source_reference","filename"),payload.get("redaction_fields")),"image/png")
                         return self.json_response(200,service.start_export(payload.get("selected_ids"),payload.get("format","combined"),payload.get("source_reference","filename"),payload.get("redaction_fields")))
