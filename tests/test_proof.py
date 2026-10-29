@@ -1,5 +1,6 @@
 """Synthetic-only tests of search, multi-page grouping and burned-in masking."""
 from permissions import assert_private
+from datetime import date
 import io
 import http.client
 import json
@@ -16,7 +17,7 @@ import pypdfium2 as pdfium
 from reportlab.pdfgen import canvas
 
 from banklens_pdf.preview import Review, make_server, quiet_renderer
-from banklens_pdf.proof import ProofError, ProofService, index_bookings, page_bands, proof_profile_context, render_redacted, write_redacted_pdf, write_combined_pdf
+from banklens_pdf.proof import ProofError, ProofService, booking_day, index_bookings, page_bands, proof_profile_context, render_redacted, statement_date_for_page, write_redacted_pdf, write_combined_pdf
 from banklens_pdf.fields import bounds
 
 
@@ -251,6 +252,56 @@ class ProofTests(unittest.TestCase):
         with self.assertRaises(ProofError):
             service.search('"unfinished')
 
+    def test_booking_date_filter_is_inclusive_and_combines_with_text_search(self):
+        records=[]
+        for identity,booking_date,text in [
+            ("before","2026-10-01","synthetic clinic"),
+            ("start","02.10.2026","synthetic clinic"),
+            ("end","04.10.2026","synthetic market"),
+            ("after","2026-10-05","synthetic clinic"),
+            ("yearless","03.10","synthetic clinic"),
+        ]:
+            records.append({"id":identity,"document_id":"document-001","booking_date":booking_date,
+                "value_date":"","amount":"10,00","text":text,"complete":True,
+                "search_text":text,"pieces":[{"page":1}]})
+        service=ProofService(self.review,self.root/"date-filter-exports")
+        service.records={record["id"]:record for record in records}
+        service.status["phase"]="ready"
+
+        result=service.search("",booking_date_from="2026-10-02",booking_date_to="2026-10-04")
+        self.assertEqual(result["total"],2)
+        self.assertEqual([record["id"] for record in result["results"]],["start","end"])
+        self.assertEqual(result["unmatched_booking_dates"],1)
+        exact=service.search("clinic",booking_date_from="2026-10-02",booking_date_to="2026-10-02")
+        self.assertEqual(exact["total"],1)
+        self.assertEqual(exact["unmatched_booking_dates"],1)
+        self.assertEqual(service.search("market",booking_date_from="2026-10-04")["total"],1)
+        self.assertEqual(service.search("clinic",booking_date_to="2026-10-02")["total"],2)
+        unfiltered=service.search("")
+        self.assertEqual(unfiltered["total"],5)
+        self.assertEqual(unfiltered["unmatched_booking_dates"],0)
+        with self.assertRaisesRegex(ProofError,"invalid_date_filter"):
+            service.search("",booking_date_from="2026-02-30")
+        with self.assertRaisesRegex(ProofError,"invalid_date_range"):
+            service.search("",booking_date_from="2026-10-05",booking_date_to="2026-10-04")
+
+    def test_booking_date_infers_year_from_recognized_statement_date(self):
+        statement_date=date(2026,10,31)
+        self.assertEqual(booking_day("04.10",statement_date),date(2026,10,4))
+        self.assertEqual(booking_day("31.12",date(2026,1,5)),date(2025,12,31))
+        self.assertEqual(booking_day("01.01",date(2026,12,31)),date(2027,1,1))
+        self.assertEqual(booking_day("04.10.26",statement_date),date(2026,10,4))
+        self.assertIsNone(booking_day("04.10"))
+
+    def test_statement_date_fallback_reads_explicit_header_label(self):
+        layout={"tokens":[
+            {"id":0,"text":"Auszugsdatum:","box":[.10,.10,.18,.02],"line":0},
+            {"id":1,"text":"31.10.2026","box":[.34,.10,.12,.02],"line":0},
+            {"id":2,"text":"Buchungstext","box":[.10,.40,.20,.02],"line":1},
+            {"id":3,"text":"Betrag","box":[.80,.40,.10,.02],"line":1},
+        ]}
+        self.assertEqual(statement_date_for_page(layout,[]),date(2026,10,31))
+
     def test_mask_starts_black_and_never_keeps_other_rows_or_balance(self):
         records=index_bookings(self.review)
         wanted=next(r for r in records if "CONTINUED_TARGET" in r["text"])
@@ -412,6 +463,9 @@ class ProofTests(unittest.TestCase):
             result=json.loads(data)["results"][0]
             self.assertEqual(result["pages"],[1,2])
             self.assertNotIn("PRIVATE_FILENAME",data.decode())
+            invalid_range=request(prefix+"api/proof/search",{"query":"",
+                "booking_date_from":"2026-10-05","booking_date_to":"2026-10-04"})
+            self.assertEqual(invalid_range[0],400)
             code,headers,data=request(prefix+"api/proof/preview",{"selected_ids":[result["id"]],"document_id":"document-001","page":1})
             self.assertEqual(code,200)
             self.assertEqual(headers["Content-Type"],"image/png")
