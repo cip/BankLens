@@ -105,6 +105,7 @@ assert review.documents[0]['page_count'] == 3
         with self.assertRaises(DirectoryError) as caught:
             open_directory(str(encrypted), self.state)
         self.assertEqual(str(caught.exception), 'pdf_password')
+        self.assertEqual(caught.exception.filename, 'PRIVATE_NAME.pdf')
 
     def test_invalid_saved_selection_has_fixed_diagnostic(self):
         review = Review(self.source, self.state)
@@ -134,6 +135,13 @@ assert review.documents[0]['page_count'] == 3
             self.assertEqual(json.loads(request(prefix+"api/proof/status")[1])["index"]["phase"],"empty")
             payload={"directory":str(self.source)}
             self.assertEqual(request(prefix+"api/source/load",payload,"https://evil.invalid")[0],403)
+            broken=self.root/'broken-synthetic'
+            broken.mkdir()
+            (broken/'synthetic-invalid.pdf').write_bytes(b'synthetic invalid PDF')
+            code,data=request(prefix+'api/source/load',{'directory':str(broken)})
+            self.assertEqual(code,400)
+            self.assertEqual(json.loads(data),{'error':'pdf_invalid','filename':'synthetic-invalid.pdf'})
+            self.assertNotIn(str(broken).encode(),data)
             code,data=request(prefix+"api/source/load",payload)
             self.assertEqual(code,200)
             opened=json.loads(data)

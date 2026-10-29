@@ -97,9 +97,9 @@ class Review:
                         pdfium.raw.FPDF_ERR_FORMAT: 'pdf_invalid',
                         pdfium.raw.FPDF_ERR_FILE: 'pdf_unreadable',
                         pdfium.raw.FPDF_ERR_SECURITY: 'pdf_security'}.get(error.err_code, 'pdf_unreadable')
-                raise DirectoryError(code) from None
+                raise DirectoryError(code, filename=path.name) from None
             except OSError:
-                raise DirectoryError('pdf_unreadable') from None
+                raise DirectoryError('pdf_unreadable', filename=path.name) from None
             self.paths[document_id] = path
             self.documents.append({"document_id": document_id,
                                    "source_sha256": fingerprint,
@@ -439,6 +439,9 @@ class Review:
 
 class DirectoryError(ValueError):
     """Fixed error codes only; never expose filesystem exception messages."""
+    def __init__(self, code, filename=None):
+        super().__init__(code)
+        self.filename = filename
 
 
 def choose_directory():
@@ -680,7 +683,7 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                             sessions[opened_token]=opened_session
                         return self.json_response(200,{**opened_session.source(),"session_path":opened_session.prefix})
                     except DirectoryError as error:
-                        return self.json_response(400,{"error":str(error)})
+                        return self.json_response(400,{"error":str(error),**({'filename':error.filename} if error.filename is not None else {})})
                 if review is None:
                     return self.json_response(409,{"error":"no_directory"})
                 if self.path == prefix+"api/profile/select":

@@ -48,9 +48,14 @@
     });
     try{
       const response=await fetch(route,options),result=await response.json();
-      if(!response.ok)throw new Error(result.error);
+      if(!response.ok){const error=new Error(result.error);if(typeof result.filename==='string')error.filename=result.filename;throw error;}
       return result;
     }finally{clearTimeout(timer);}
+  }
+
+  function showError(error){
+    const message=errors[error.message]||'Der lokale Ordner konnte nicht geladen werden. Bitte Verbindung und Toolkit prüfen.';
+    show(message+(error.filename?` Betroffene Datei: ${error.filename}`:''),true);
   }
 
   async function openSession(directory){
@@ -71,7 +76,7 @@
     setBusy(true);
     show('PDF-Dateien im Ordner werden lokal geladen …');
     try{await openSession(directory);}
-    catch(error){show(errors[error.message]||'Der lokale Ordner konnte nicht geladen werden. Bitte Verbindung und Toolkit prüfen.',true);}
+    catch(error){showError(error);}
     finally{setBusy(false);}
   }
 
@@ -91,7 +96,7 @@
       show('PDF-Dateien im ausgewählten Ordner werden lokal geladen …');
       await openSession(result.directory);
     }catch(error){
-      show(errors[error.message]||'Der lokale Ordner konnte nicht geladen werden. Bitte Verbindung und Toolkit prüfen.',true);
+      showError(error);
     }finally{setBusy(false);}
   });
 

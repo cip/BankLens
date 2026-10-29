@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 let workspace, fields={}, current=0, page=1, ready=false, loading=false, scanning=false, cancelScan=false;
 let dirty=false, revision=0, generation=0, history=[], layout=null, selectedIDs=[], editing=null, profileAvailable=false;
 const layouts=new Map(), svgNS='http://www.w3.org/2000/svg';
-const EXPECTED_API_VERSION=10,EXPECTED_REVISION='booking-blocks-4';
+const EXPECTED_API_VERSION=11,EXPECTED_REVISION='booking-blocks-4';
 let serverCompatible=false,recognitionRevision=EXPECTED_REVISION,activeProfileDigest=null;
 function message(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);}
 async function api(route,payload){
