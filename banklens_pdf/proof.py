@@ -30,7 +30,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
-from .fields import bounds, recognize_page, summary_boundary, table_context
+from .fields import bounds, recognize_page, summary_boundary, table_context, text_lines
 from .preview import quiet_renderer
 from .private_files import create_private
 
@@ -230,24 +230,80 @@ def filter_date(value):
         raise ProofError("invalid_date_filter") from None
 
 
-def booking_day(value):
-    """Return a booking date only when the recognized value contains a year."""
+def booking_day(value,statement_date=None):
+    """Parse a booking date, inferring a missing year from its statement date."""
     if not isinstance(value,str):
         return None
-    raw=value.strip()
+    raw=value.strip().rstrip(".").strip()
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}",raw):
         try:
             return date.fromisoformat(raw)
         except ValueError:
             return None
-    match=re.fullmatch(r"(\d{1,2})\s*[./]\s*(\d{1,2})\s*[./]\s*(\d{4})",raw)
+    match=re.fullmatch(r"(\d{1,2})\s*[./]\s*(\d{1,2})(?:\s*[./]\s*(\d{2,4}))?",raw)
     if not match:
         return None
-    day,month,year=map(int,match.groups())
+    day,month,year_text=match.groups()
+    day,month=int(day),int(month)
+    if year_text:
+        year=int(year_text)
+        if len(year_text)==2:
+            year+=2000 if year<=68 else 1900
+    elif isinstance(statement_date,date):
+        year=statement_date.year
+    else:
+        return None
     try:
-        return date(year,month,day)
+        result=date(year,month,day)
     except ValueError:
         return None
+    if not year_text and isinstance(statement_date,date):
+        delta=(result-statement_date).days
+        if delta>183:
+            try:
+                result=date(year-1,month,day)
+            except ValueError:
+                return None
+        elif delta < -183:
+            try:
+                result=date(year+1,month,day)
+            except ValueError:
+                return None
+    return result
+
+
+def statement_date_for_page(layout,annotations):
+    """Read a profiled statement date or a clearly labeled header date."""
+    for annotation in annotations:
+        if annotation.get("field")=="statement.date":
+            parsed=booking_day(words_text(layout,annotation["token_ids"]))
+            if parsed:
+                return parsed
+    context=table_context(layout)
+    header_limit=context["top"] if context else 1
+    header_tokens=[token for token in layout["tokens"] if token.get("rotation",0)==0
+                   and token["box"][1]<header_limit]
+    date_pattern=re.compile(r"(?<!\d)(?:\d{4}-\d{2}-\d{2}|\d{1,2}\s*[./]\s*\d{1,2}(?:\s*[./]\s*\d{2,4})?\.?)")
+    lines=text_lines(header_tokens)
+    for index,line in enumerate(lines):
+        line_text=" ".join(token["text"] for token in line)
+        label=re.search(r"auszugs\s*datum",line_text,re.IGNORECASE)
+        if not label:
+            continue
+        candidates=[line_text[label.end():]]
+        if index+1<len(lines):
+            next_line=lines[index+1]
+            line_box,next_box=bounds(line),bounds(next_line)
+            gap=next_box[1]-(line_box[1]+line_box[3])
+            if 0<=gap<=max(line_box[3],next_box[3])*2.5:
+                candidates.append(" ".join(token["text"] for token in next_line))
+        for candidate_text in candidates:
+            found=date_pattern.search(candidate_text)
+            if found:
+                parsed=booking_day(found.group())
+                if parsed:
+                    return parsed
+    return None
 
 
 def words_text(layout,ids):
@@ -272,6 +328,8 @@ def index_bookings(review,progress=lambda done,total,count:None,cancel=None,prof
     done=0
     for descriptor in review.documents:
         document_id=descriptor["document_id"]
+        document_record_start=len(records)
+        document_statement_date=None
         previous=None
         fragments={}
         saved=next(d for d in workspace["documents"] if d["document_id"]==document_id)
@@ -283,6 +341,9 @@ def index_bookings(review,progress=lambda done,total,count:None,cancel=None,prof
             outcome=recognize_page(profile,layout,document_id,rejected,previous)
             previous=outcome["carry"]
             annotations=outcome["suggestions"]
+            page_statement_date=statement_date_for_page(layout,annotations)
+            if document_statement_date is None and page_statement_date:
+                document_statement_date=page_statement_date
             roots={a["id"]:a for a in annotations if a["field"]=="transaction.row"}
             for event in outcome["rows"]:
                 row=roots.get(event["id"])
@@ -322,6 +383,8 @@ def index_bookings(review,progress=lambda done,total,count:None,cancel=None,prof
                 fragments[row["id"]]=record
             done+=1
             progress(done,total,len(records))
+        for record in records[document_record_start:]:
+            record["booking_day"]=booking_day(record["booking_date"],document_statement_date)
     for record in records:
         record["text"]="\n".join(record.pop("text_parts"))
         record["search_text"]=normalize(" ".join(record.pop("search_parts"))+" "+record["booking_date"]+" "+record["value_date"]+" "+record["amount"])
@@ -579,7 +642,7 @@ class ProofService:
                 if not all(term in record["search_text"] for term in terms):
                     continue
                 if date_from or date_to:
-                    day=booking_day(record["booking_date"])
+                    day=record.get("booking_day") or booking_day(record["booking_date"])
                     if day is None or (date_from and day<date_from) or (date_to and day>date_to):
                         continue
                 matches.append(record)
