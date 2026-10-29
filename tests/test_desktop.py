@@ -26,14 +26,12 @@ class DesktopTests(unittest.TestCase):
                 self.stopped = True
             def server_close(self):
                 self.closed = True
-        class Dialog:
-            FOLDER = 1
         class Window:
             def create_file_dialog(self, kind):
                 self.kind = kind
                 return ('C:/synthetic',)
         class Webview:
-            FileDialog = Dialog
+            FOLDER_DIALOG = 20  # pywebview 5.4 public API
             settings = {}
             window = Window()
             def create_window(self, title, url, **kwargs):
@@ -50,6 +48,9 @@ class DesktopTests(unittest.TestCase):
             desktop.run(view)
         self.assertTrue(server.stopped and server.closed)
         self.assertEqual(captured['directory_picker'](), 'C:/synthetic')
+        self.assertEqual(view.window.kind, view.FOLDER_DIALOG)
+        with patch.object(view.window, 'create_file_dialog', return_value=None):
+            self.assertIsNone(captured['directory_picker']())
         self.assertEqual(captured['output_directory'], captured['state_directory'] / 'exports')
         self.assertEqual(view.options['gui'], 'edgechromium')
         self.assertFalse(view.settings['ALLOW_FILE_URLS'])

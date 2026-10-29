@@ -20,7 +20,7 @@ def run(webview):
 
     def pick_directory():
         try:
-            selected = window.create_file_dialog(webview.FileDialog.FOLDER)
+            selected = window.create_file_dialog(webview.FOLDER_DIALOG)
             return selected[0] if selected else None
         except Exception:
             raise DirectoryError("directory_picker_unavailable") from None
