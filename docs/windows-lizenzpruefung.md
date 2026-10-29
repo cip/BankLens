@@ -28,23 +28,25 @@ Quellcode-Commit sind für jede Verteilung erneut zu prüfen.
   CI verwendet NSIS 3.13.0. PyInstaller 6.11.1 hat eine
   [Ausnahme für erzeugte Programme](https://pyinstaller.org/en/v6.11.1/license.html).
   Das Skript verwendet keine NSIS-Plugins und legt zlib als Kompression fest.
-- Im untersuchten CI-Paket `91a1f9e` wurden Windows-Systemlaufzeitdateien aus
-  einer auf dem Runner vorhandenen Java-Installation übernommen. Dieser
-  unbeabsichtigte Ursprung ist für eine Verteilung nicht belegt. Der Build
-  entfernt Java-Verzeichnisse aus dem Suchpfad und schließt diese Windows-
-  Systemlaufzeitdateien aus dem Paket aus. Das nicht für Windows benötigte
-  `pywebview-android.jar` wird entfernt; der Build prüft anschließend, dass
-  keine Java-Laufzeit oder JAR-Dateien eingebunden sind. Das Paket setzt die
-  Microsoft Visual C++ 2015–2022 Runtime (x64) als Systemvoraussetzung voraus.
-  Der Installer prüft den offiziellen Registry-Eintrag und bietet bei fehlender
-  Runtime den Download von Microsoft an; danach muss der Nutzer BankLens-Setup
-  erneut starten. Die Runtime-DLLs werden nicht mitgeliefert. Build und CI
-  prüfen, dass keine `VCRUNTIME*.dll` im App-Paket enthalten ist. Der
-  Windows-CI-Selbsttest läuft auf einem Runner mit installierter Runtime; das
-  Fehlen der Runtime auf einem sauberen Windows-System wird nicht simuliert.
-- Der nicht benötigte Testfont `reportlab/fonts/hb-test.ttf` wird aus dem
-  Paket entfernt. Die verwendbaren Vera-Schriften und ihre Lizenzdatei bleiben
-  erhalten.
+- Die von PyInstaller gesammelten Paketdateien bleiben erhalten. Insbesondere
+  werden weder Pythons `VCRUNTIME140.dll` noch pywebviews Android-JAR oder
+  ReportLabs Testfont nachträglich gelöscht. Das Android-JAR enthält nur
+  pywebview-Klassen und installiert oder startet keine Java-Laufzeit.
+- Die DLL-Suche verwendet einen begrenzten Suchpfad mit der ausgewählten Python-
+  Installation, Windows und den Build-Werkzeugen. Der Build lehnt native
+  Abhängigkeiten aus fremden Java-Installationen ab. Dies verhindert zufällige
+  Übernahmen vom CI-Rechner, ohne Bestandteile der Abhängigkeiten zu löschen.
+  `VCRUNTIME140.dll` muss bytegleich mit der Datei aus Python 3.11.9 sein.
+- Die Weitergabe von Python in Quell- und Binärform ist nach der
+  [PSF-Lizenz von Python 3.11.9](https://github.com/python/cpython/blob/v3.11.9/LICENSE)
+  erlaubt. Lizenz und Copyright-Hinweise werden mitgeliefert. BankLens bündelt
+  den unveränderten Interpreter und eine durch PyInstaller zusammengestellte
+  Auswahl der Bibliotheken; Python selbst wird nicht gepatcht. Python führt
+  Versionen ab 2.2 als GPL-kompatibel auf.
+- Der unveränderte ReportLab-Testfont `hb-test.ttf` enthält einen Ausschnitt
+  aus Noto Sans Khmer, Copyright 2022 The Noto Project Authors. Die SIL OFL 1.1
+  erlaubt die gebündelte Weitergabe; ihr Text liegt zusätzlich bei. Der Build
+  prüft diesen Font und das Android-JAR gegen die installierten Paketdateien.
 - Die in pywebview 5.4 enthaltenen WebView2-SDK-DLLs entsprechen bytegenau dem
   Microsoft-SDK 1.0.2957.106; ihr Lizenztext liegt bei und die SHA-256-Werte
   werden im Build geprüft. Die separat installierte WebView2-Runtime wird nicht
@@ -66,16 +68,19 @@ Verteilungspflichten für jeden Vertriebsweg. Der gewählte Vertriebsweg muss de
 zum tatsächlich verteilten Binärstand passenden vollständigen entsprechenden
 Quellcode und die erforderlichen Rechte und Hinweise zugänglich machen.
 
-Frühere geprüfte Pakete enthielten `VCRUNTIME140.dll` aus der Python-3.11.9-
-Installation. Der aktuelle Build entfernt verbliebene `VCRUNTIME*.dll` und
-weist deren Anwesenheit zurück. Das vermeidet die direkte Mitlieferung dieser
-Runtime-Dateien durch BankLens. Im Paket enthaltene CPython-Binärdateien
-können weiterhin Microsoft Distributable Code enthalten; der
-[CPython-Hinweis](https://github.com/python/cpython/blob/v3.11.9/PC/crtlicense.txt)
-liegt daher bei und Microsoft-Bedingungen für diese Bestandteile sind vor
-öffentlicher Verteilung weiterhin zu prüfen. Die
-[Microsoft-Verteilungshinweise](https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files)
-beschreiben die Runtime-Voraussetzung und deren Installation.
+Der [Windows-Hinweis von CPython 3.11.9](https://github.com/python/cpython/blob/v3.11.9/PC/crtlicense.txt)
+beschreibt die Weitergabe von Microsoft Distributable Code mit dem Python-
+Windows-Build. Er erlaubt sie unter den dort genannten Voraussetzungen:
+Microsoft-Hinweise nicht verändern, keine Microsoft-Unterstützung suggerieren,
+nur für Microsoft-Plattformen verteilen und nicht für schädliche oder täuschende
+Programme verwenden. Diese Vorgaben werden für BankLens berücksichtigt; der
+vollständige Hinweis liegt bei. Der Hinweis spricht zusätzlich die Zustimmung
+externer Nutzer und Weiterverteiler zu Schutzbedingungen für Microsoft-Code an.
+Eine abschließende Bewertung dieser Zustimmungsklausel für die Weitergabe des
+konkreten eingefrorenen Pakets ist nicht durch den Build belegt. Es wurde weder
+ein Verstoß festgestellt noch aus dieser Unsicherheit eine Notwendigkeit zum
+Entfernen einzelner Dateien abgeleitet. Die PSF-Erlaubnis zur Weitergabe von
+Python und diese zusätzliche Frage sind getrennt dokumentiert.
 
 Die Impressums- und Informationspflichten hängen zusätzlich von Sitz und
 konkretem Vertriebsmodell ab; ein GitHub-Link ersetzt diese Prüfung nicht.

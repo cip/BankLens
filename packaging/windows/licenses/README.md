@@ -20,3 +20,5 @@ gesammelten Lizenztexte. Sie stammen aus folgenden versionsgebundenen Quellen:
   anhand seiner SHA-256-Prüfsumme. Die widersprüchlichen Metadaten bleiben
   dokumentiert und sollten bei einer späteren Aktualisierung erneut geprüft
   werden.
+
+- `noto-sans-khmer-OFL.txt`: [SIL OFL 1.1 von Noto Sans Khmer](https://github.com/notofonts/khmer/blob/main/OFL.txt), Copyright 2022 The Noto Project Authors. Der unveränderte ReportLab-Testfont `hb-test.ttf` enthält diesen Copyright-Eintrag; der Build prüft seine SHA-256-Prüfsumme.

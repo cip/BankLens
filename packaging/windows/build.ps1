@@ -3,21 +3,23 @@ Set-Location (Join-Path $PSScriptRoot '../..')
 $pipReport = Join-Path $env:TEMP "banklens-pip-report-$PID.json"
 python -m pip install --force-reinstall --report $pipReport -r packaging/windows/requirements.txt
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
-$env:PATH = (($env:PATH -split ';') | Where-Object { $_ -notmatch '(?i)java|jdk|jre' }) -join ';'
+# Resolve native dependencies only from the selected Python and Windows installation.
+$pythonRoot = python -c "import sys; print(sys.base_prefix)"
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
+$gitBin = Split-Path (Get-Command git).Source
+$nsisBin = Split-Path (Get-Command makensis).Source
+$env:PATH = "$gitBin;$nsisBin;$pythonRoot;$pythonRoot/Scripts;$env:SystemRoot/System32;$env:SystemRoot"
 python -m PyInstaller --noconfirm --clean --windowed --onedir --name BankLens --paths . --add-data 'banklens_pdf/web;banklens_pdf/web' --add-data 'banklens_pdf/profiles;banklens_pdf/profiles' --collect-all pypdfium2 --collect-data reportlab packaging/windows/desktop_entry.py
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
-$unexpectedRuntime = @(Get-ChildItem 'dist/BankLens/_internal' -File | Where-Object { $_.Name -match '^(?i:api-ms-win-.*|ucrtbase)\.dll$' })
-if ($unexpectedRuntime.Count) { $unexpectedRuntime | Remove-Item -Force }
-$bundledRuntime = @(Get-ChildItem 'dist/BankLens' -File -Recurse | Where-Object { $_.Name -match '^(?i:VCRUNTIME.*)\.dll$' })
-if ($bundledRuntime.Count) { $bundledRuntime | Remove-Item -Force }
-$androidJar = 'dist/BankLens/_internal/webview/lib/pywebview-android.jar'
-if (Test-Path $androidJar) { Remove-Item $androidJar -Force }
-$testFont = 'dist/BankLens/_internal/reportlab/fonts/hb-test.ttf'
-if (Test-Path $testFont) { Remove-Item $testFont -Force }
-$javaComponents = @(Get-ChildItem 'dist/BankLens' -File -Recurse | Where-Object { $_.Name -match '^(?i:jvm\.dll|java(?:w)?\.exe)$' -or $_.Extension -ieq '.jar' })
-if ($javaComponents.Count) { throw 'Unerwartete Java-Komponente im Paket.' }
-$bundledRuntime = @(Get-ChildItem 'dist/BankLens' -File -Recurse | Where-Object { $_.Name -match '^(?i:VCRUNTIME.*)\.dll$' })
-if ($bundledRuntime.Count) { throw 'Microsoft Visual C++ Runtime darf nicht im Paket enthalten sein.' }
+$pythonRuntime = Join-Path $pythonRoot 'VCRUNTIME140.dll'
+$bundledRuntime = 'dist/BankLens/_internal/VCRUNTIME140.dll'
+if (!(Test-Path $bundledRuntime) -or (Get-FileHash $pythonRuntime).Hash -ne (Get-FileHash $bundledRuntime).Hash) {
+    throw 'Die Microsoft-C-Laufzeit fehlt oder weicht von der Python-Installation ab.'
+}
+$javaRuntime = @(Get-ChildItem 'dist/BankLens' -File -Recurse | Where-Object { $_.Name -match '^(?i:jvm\.dll|java(?:w)?\.exe)$' })
+if ($javaRuntime.Count) { throw 'Unerwartete Java-Laufzeit im Paket.' }
+python packaging/windows/verify_vendor_files.py
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
 Copy-Item LICENSE 'dist/BankLens/LICENSE.txt'
 Copy-Item COPYRIGHT.md 'dist/BankLens/COPYRIGHT.md'
 python packaging/windows/collect_licenses.py 'dist/BankLens/Lizenzen' $pipReport

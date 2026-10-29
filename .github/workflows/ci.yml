@@ -77,7 +77,6 @@ jobs:
           if ($LASTEXITCODE) { throw 'Installer konnte nicht geprüft werden.' }
           $actual = @(Get-ChildItem $out -File -Recurse)
           $expected = @(Get-ChildItem 'dist/BankLens' -File -Recurse)
-          if ($expected | Where-Object { $_.Name -match '^(?i:VCRUNTIME.*)\.dll$' }) { throw 'Microsoft Visual C++ Runtime darf nicht im Paket enthalten sein.' }
           foreach ($file in $expected) {
             $hash = (Get-FileHash $file.FullName).Hash
             $match = $actual | Where-Object { $_.Name -eq $file.Name -and (Get-FileHash $_.FullName).Hash -eq $hash } | Select-Object -First 1
@@ -85,8 +84,6 @@ jobs:
           }
           python -c "import zipfile; z=zipfile.ZipFile('dist/BankLens/BankLens-Quellcode.zip'); assert 'banklens_pdf/desktop.py' in z.namelist() and 'packaging/windows/requirements.txt' in z.namelist()"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $installerScript = Get-Content 'packaging/windows/BankLens.nsi' -Raw
-          if ($installerScript -notmatch 'VisualStudio\\14\.0\\VC\\Runtimes\\x64' -or $installerScript -notmatch 'VC_RUNTIME_DOWNLOAD') { throw 'Die VC++-Laufzeitvoraussetzung fehlt im Installer.' }
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() && steps.installer.outcome == 'success' && steps.license_check.outcome == 'success' }}
         with:
