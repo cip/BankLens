@@ -5,6 +5,10 @@ OutFile "BankLens-Setup.exe"
 InstallDir "$LOCALAPPDATA\Programs\BankLens"
 RequestExecutionLevel user
 
+LicenseData "licenses\python-3.11.9-microsoft-crt.txt"
+LicenseText "Microsoft-Code im mitgelieferten Python: Die Zustimmung gilt nur fuer Microsoft Distributable Code. BankLens bleibt unter GPL-3.0-only." "Weiter"
+LicenseForceSelection checkbox "Ich akzeptiere die Bedingungen fuer Microsoft Distributable Code."
+Page license
 Page instfiles
 UninstPage uninstConfirm
 UninstPage instfiles

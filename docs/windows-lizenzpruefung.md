@@ -76,11 +76,14 @@ nur für Microsoft-Plattformen verteilen und nicht für schädliche oder täusch
 Programme verwenden. Diese Vorgaben werden für BankLens berücksichtigt; der
 vollständige Hinweis liegt bei. Der Hinweis spricht zusätzlich die Zustimmung
 externer Nutzer und Weiterverteiler zu Schutzbedingungen für Microsoft-Code an.
-Eine abschließende Bewertung dieser Zustimmungsklausel für die Weitergabe des
-konkreten eingefrorenen Pakets ist nicht durch den Build belegt. Es wurde weder
-ein Verstoß festgestellt noch aus dieser Unsicherheit eine Notwendigkeit zum
-Entfernen einzelner Dateien abgeleitet. Die PSF-Erlaubnis zur Weitergabe von
-Python und diese zusätzliche Frage sind getrennt dokumentiert.
+Der Installer zeigt deshalb den vollständigen unveränderten CPython-Hinweis
+vor dem Kopieren der Dateien und verlangt die Zustimmung ausdrücklich nur für
+Microsoft Distributable Code. BankLens bleibt unter GPL-3.0-only; die Seite
+fügt dessen Lizenz keine zusätzlichen Bedingungen hinzu. Der Hinweis bleibt
+auch nach der Installation im Lizenzverzeichnis zugänglich. Die technische
+Umsetzung ersetzt keine individuelle Rechtsberatung, dokumentiert aber die
+konkrete Weitergabebedingung und ihre Umsetzung. Eine Notwendigkeit zum
+Entfernen einzelner Dateien wurde aus dem Hinweis nicht abgeleitet.
 
 Die Impressums- und Informationspflichten hängen zusätzlich von Sitz und
 konkretem Vertriebsmodell ab; ein GitHub-Link ersetzt diese Prüfung nicht.
