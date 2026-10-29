@@ -20,8 +20,8 @@ Quellcode-Commit sind für jede Verteilung erneut zu prüfen.
   dokumentiert die installierten Paketversionen und aufgefundenen Lizenzdateien;
   `paket-downloads.json` enthält SHA-256-Prüfsummen der heruntergeladenen Pakete.
 - `Paketinhalt.json` listet Dateien des vorbereiteten Pakets und ihre SHA-256-
-  Prüfsummen auf. Die CI entpackt den Installer und vergleicht die enthaltenen
-  Lizenzdateien und das Quellcodearchiv mit den vorbereiteten Dateien. Sie
+  Prüfsummen auf. Die CI entpackt den Installer und vergleicht alle vorbereiteten
+  Dateien mit den enthaltenen Dateien. Sie
   veröffentlicht Paketliste, Paketversionen und PyInstaller-Inventar als
   gesonderten Nachweis zum jeweiligen Lauf.
 - Der Windows-Build verwendet Python 3.11.9 und festgelegte Paketversionen;
@@ -36,6 +36,9 @@ Quellcode-Commit sind für jede Verteilung erneut zu prüfen.
   `pywebview-android.jar` wird entfernt; der Build prüft anschließend, dass
   keine Java-Laufzeit oder JAR-Dateien eingebunden sind. Das Paket setzt die Systemlaufzeit eines
   aktuellen Windows voraus; der Windows-CI-Selbsttest prüft den Start dort.
+- Der nicht benötigte Testfont `reportlab/fonts/hb-test.ttf` wird aus dem
+  Paket entfernt. Die verwendbaren Vera-Schriften und ihre Lizenzdatei bleiben
+  erhalten.
 - Die in pywebview 5.4 enthaltenen WebView2-SDK-DLLs entsprechen bytegenau dem
   Microsoft-SDK 1.0.2957.106; ihr Lizenztext liegt bei und die SHA-256-Werte
   werden im Build geprüft. Die separat installierte WebView2-Runtime wird nicht
@@ -56,6 +59,12 @@ Quellcodearchiv allein belegen nicht automatisch sämtliche GPL- oder sonstigen
 Verteilungspflichten für jeden Vertriebsweg. Der gewählte Vertriebsweg muss den
 zum tatsächlich verteilten Binärstand passenden vollständigen entsprechenden
 Quellcode und die erforderlichen Rechte und Hinweise zugänglich machen.
+
+Der geprüfte Lauf `350bae8` enthält `VCRUNTIME140.dll` aus der Python-3.11.9-
+Installation; der Build vergleicht die Datei mit derjenigen der verwendeten
+Python-Installation. Die [Microsoft-Verteilungshinweise](https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files)
+knüpfen die Weitergabe an Lizenzbedingungen. Ob die Voraussetzungen für den
+konkreten Veröffentlichungsweg erfüllt sind, ist noch gesondert zu klären.
 
 Die Impressums- und Informationspflichten hängen zusätzlich von Sitz und
 konkretem Vertriebsmodell ab; ein GitHub-Link ersetzt diese Prüfung nicht.

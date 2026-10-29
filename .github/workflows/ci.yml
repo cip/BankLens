@@ -76,8 +76,7 @@ jobs:
           & 7z x 'packaging/windows/BankLens-Setup.exe' "-o$out" -y | Out-Null
           if ($LASTEXITCODE) { throw 'Installer konnte nicht geprüft werden.' }
           $actual = @(Get-ChildItem $out -File -Recurse)
-          $expected = @(Get-ChildItem 'dist/BankLens/Lizenzen' -File -Recurse)
-          $expected += Get-Item 'dist/BankLens/LICENSE.txt', 'dist/BankLens/COPYRIGHT.md', 'dist/BankLens/Quellcode-Commit.txt', 'dist/BankLens/BankLens-Quellcode.zip', 'dist/BankLens/Paketinhalt.json'
+          $expected = @(Get-ChildItem 'dist/BankLens' -File -Recurse)
           foreach ($file in $expected) {
             $hash = (Get-FileHash $file.FullName).Hash
             $match = $actual | Where-Object { $_.Name -eq $file.Name -and (Get-FileHash $_.FullName).Hash -eq $hash } | Select-Object -First 1

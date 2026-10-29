@@ -8,8 +8,17 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir --name BankLens --
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $unexpectedRuntime = @(Get-ChildItem 'dist/BankLens/_internal' -File | Where-Object { $_.Name -match '^(?i:api-ms-win-.*|ucrtbase)\.dll$' })
 if ($unexpectedRuntime.Count) { $unexpectedRuntime | Remove-Item -Force }
+$pythonRoot = python -c "import sys; print(sys.base_prefix)"
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
+$pythonRuntime = Join-Path $pythonRoot 'VCRUNTIME140.dll'
+$bundledRuntime = 'dist/BankLens/_internal/VCRUNTIME140.dll'
+if (!(Test-Path $pythonRuntime) -or !(Test-Path $bundledRuntime) -or (Get-FileHash $pythonRuntime).Hash -ne (Get-FileHash $bundledRuntime).Hash) {
+    throw 'Die gebündelte Microsoft-C-Laufzeit stimmt nicht mit der Python-Installation überein.'
+}
 $androidJar = 'dist/BankLens/_internal/webview/lib/pywebview-android.jar'
 if (Test-Path $androidJar) { Remove-Item $androidJar -Force }
+$testFont = 'dist/BankLens/_internal/reportlab/fonts/hb-test.ttf'
+if (Test-Path $testFont) { Remove-Item $testFont -Force }
 $javaComponents = @(Get-ChildItem 'dist/BankLens' -File -Recurse | Where-Object { $_.Name -match '^(?i:jvm\.dll|java(?:w)?\.exe)$' -or $_.Extension -ieq '.jar' })
 if ($javaComponents.Count) { throw 'Unerwartete Java-Komponente im Paket.' }
 Copy-Item LICENSE 'dist/BankLens/LICENSE.txt'
