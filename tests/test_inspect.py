@@ -1,3 +1,4 @@
+from permissions import assert_private
 import contextlib
 import io
 import json
@@ -48,9 +49,12 @@ class InspectTests(unittest.TestCase):
             self.assertFalse(report["anonymization_performed"])
 
     def test_unreadable_exception_is_not_returned(self):
-        with tempfile.NamedTemporaryFile() as source:
-            with patch("banklens_pdf.inspect.PdfReader", side_effect=ValueError(SECRET)):
-                result = inspect_pdf(Path(source.name), "document-001")
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "source.pdf"
+            source.write_bytes(b"synthetic")
+            with patch("banklens_pdf.inspect.PdfReader", side_effect=ValueError(SECRET)) as reader:
+                result = inspect_pdf(source, "document-001")
+                reader.assert_called_once()
         self.assertEqual(result, {"document_id": "document-001", "status": "unreadable"})
 
     def test_encrypted_file_is_skipped_without_accessing_pages(self):
@@ -61,9 +65,12 @@ class InspectTests(unittest.TestCase):
             def pages(self):
                 raise AssertionError("Encrypted pages must not be accessed")
 
-        with tempfile.NamedTemporaryFile() as source:
-            with patch("banklens_pdf.inspect.PdfReader", return_value=Locked()):
-                self.assertEqual(inspect_pdf(Path(source.name), "document-001")["status"], "encrypted_skipped")
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "source.pdf"
+            source.write_bytes(b"synthetic")
+            with patch("banklens_pdf.inspect.PdfReader", return_value=Locked()) as reader:
+                self.assertEqual(inspect_pdf(source, "document-001")["status"], "encrypted_skipped")
+                reader.assert_called_once()
 
     def test_reports_cannot_overwrite_or_enter_input_directory(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -73,7 +80,7 @@ class InspectTests(unittest.TestCase):
                 write_report(source / "report.json", source, {})
             target = Path(folder) / "report.json"
             write_report(target, source, {"safe": True})
-            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+            assert_private(self, target)
             with self.assertRaises(ValueError):
                 write_report(target, source, {})
             self.assertEqual(json.loads(target.read_text()), {"safe": True})
@@ -83,6 +90,7 @@ class InspectTests(unittest.TestCase):
             directory = Path(folder)
             original = directory / "original.PDF"
             original.write_bytes(b"dummy")
+            (directory / "._original.PDF").write_bytes(b'\x00\x05\x16\x07' + bytes(32))
             (directory / "link.pdf").symlink_to(original)
             nested = directory / "nested"
             nested.mkdir()

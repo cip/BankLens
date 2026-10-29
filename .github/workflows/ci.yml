@@ -44,3 +44,59 @@ jobs:
       - run: python tools/create_multiline_demo_pdf.py
       - run: node tools/test_multiline_ui.cjs
       - run: node tools/test_proof_ui.cjs
+
+  windows-installer:
+    name: Windows installer build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+      - name: Install NSIS
+        run: choco install nsis --version 3.13.0 --no-progress -y
+      - name: Run Python tests
+        run: |
+          python -m pip install -r requirements.txt
+          python -m unittest discover -s tests -v
+      - name: Build installer
+        id: installer
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          $env:PATH += ';C:\Program Files (x86)\NSIS'
+          ./packaging/windows/build.ps1
+      - name: Verify installer license and source files
+        id: license_check
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'banklens-installer-contents'
+          & 7z x 'packaging/windows/BankLens-Setup.exe' "-o$out" -y | Out-Null
+          if ($LASTEXITCODE) { throw 'Installer konnte nicht geprüft werden.' }
+          $actual = @(Get-ChildItem $out -File -Recurse)
+          $expected = @(Get-ChildItem 'dist/BankLens' -File -Recurse)
+          foreach ($file in $expected) {
+            $hash = (Get-FileHash $file.FullName).Hash
+            $match = $actual | Where-Object { $_.Name -eq $file.Name -and (Get-FileHash $_.FullName).Hash -eq $hash } | Select-Object -First 1
+            if (!$match) { throw "Datei fehlt im Installer: $($file.Name)" }
+          }
+          python -c "import zipfile; z=zipfile.ZipFile('dist/BankLens/BankLens-Quellcode.zip'); assert 'banklens_pdf/desktop.py' in z.namelist() and 'packaging/windows/requirements.txt' in z.namelist()"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' && steps.license_check.outcome == 'success' }}
+        with:
+          name: BankLens-Windows-installer
+          path: packaging/windows/BankLens-Setup.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' && steps.license_check.outcome == 'success' }}
+        with:
+          name: BankLens-Windows-Paketnachweise
+          path: |
+            dist/BankLens/Paketinhalt.json
+            dist/BankLens/Quellcode-Commit.txt
+            dist/BankLens/Lizenzen/paketversionen.json
+            build/BankLens/Analysis-00.toc
+          if-no-files-found: error

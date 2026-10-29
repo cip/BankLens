@@ -7,6 +7,7 @@ only after selection. Original images and document strings are never logged.
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
@@ -17,7 +18,6 @@ from pathlib import Path
 import secrets
 import subprocess
 import sys
-import tempfile
 from functools import lru_cache
 from bisect import bisect_right
 import re
@@ -25,10 +25,13 @@ import threading
 
 import pypdfium2 as pdfium
 
-from .inspect import quiet_parser
+from .inspect import is_appledouble, quiet_parser
 from .fields import FIELDS, compile_profile, extract_layout, recognize_page, transaction_blocks, block_body_tokens, repair_missing_parents
 from .version import APP_VERSION, API_VERSION, RECOGNITION_REVISION
 from .profiles import ProfileStore, read_json
+
+
+from .private_files import private_temporary
 
 
 WEB = Path(__file__).with_name("web")
@@ -42,13 +45,20 @@ def quiet_renderer():
     # PDFium and process-wide diagnostic redirection must remain serialized,
     # while idle browser sockets must never block unrelated HTTP requests.
     with RENDER_LOCK, quiet_parser(), open(os.devnull, "w") as sink:
-        copies = [os.dup(fd) for fd in (1, 2)]
+        copies = []
         try:
             for fd in (1, 2):
+                try:
+                    copy = os.dup(fd)
+                except OSError as error:
+                    if error.errno == errno.EBADF:
+                        continue
+                    raise
+                copies.append((fd, copy))
                 os.dup2(sink.fileno(), fd)
             yield
         finally:
-            for fd, copy in zip((1, 2), copies):
+            for fd, copy in copies:
                 os.dup2(copy, fd)
                 os.close(copy)
 
@@ -73,14 +83,23 @@ class Review:
         self.state_directory = state_directory
         self.plan_path = state_directory / "review-plan.json"
         paths = sorted((p for p in directory.iterdir() if p.suffix.lower() == ".pdf"
-                        and not p.is_symlink() and p.is_file()), key=lambda p: p.name)
+                        and not p.is_symlink() and p.is_file() and not is_appledouble(p)), key=lambda p: p.name)
         if not paths:
             raise ValueError("no_documents")
         for index, path in enumerate(paths, start=1):
             document_id = f"document-{index:03d}"
-            fingerprint = digest_file(path)
-            with quiet_renderer(), pdfium.PdfDocument(str(path)) as document:
-                page_count = len(document)
+            try:
+                fingerprint = digest_file(path)
+                with quiet_renderer(), pdfium.PdfDocument(str(path)) as document:
+                    page_count = len(document)
+            except pdfium.PdfiumError as error:
+                code = {pdfium.raw.FPDF_ERR_PASSWORD: 'pdf_password',
+                        pdfium.raw.FPDF_ERR_FORMAT: 'pdf_invalid',
+                        pdfium.raw.FPDF_ERR_FILE: 'pdf_unreadable',
+                        pdfium.raw.FPDF_ERR_SECURITY: 'pdf_security'}.get(error.err_code, 'pdf_unreadable')
+                raise DirectoryError(code, filename=path.name) from None
+            except OSError:
+                raise DirectoryError('pdf_unreadable', filename=path.name) from None
             self.paths[document_id] = path
             self.documents.append({"document_id": document_id,
                                    "source_sha256": fingerprint,
@@ -91,18 +110,21 @@ class Review:
         self.selection_path = state_directory / f"profile-selection-{set_key}.json"
         self.profiles = ProfileStore(self)
         self.selected_profile = 'examples'
-        if self.selection_path.exists():
-            selection = read_json(self.selection_path)
-            if selection.get('schema_version') != 1:
-                raise ValueError('invalid_profile_selection')
-            self.selected_profile = selection['reference']
-            self.profiles.load(self.selected_profile)
-        elif self.workspace_path.exists() and any(a['kind']=='example' for d in self.load_workspace()['documents'] for a in d['annotations']):
-            self.selected_profile = 'examples'
-        elif self.profile_path.exists():
-            self.selected_profile = 'legacy'
-        else:
-            self.selected_profile = 'bundled:bank-austria:1'
+        try:
+            if self.selection_path.exists():
+                selection = read_json(self.selection_path)
+                if selection.get('schema_version') != 1:
+                    raise ValueError('invalid_profile_selection')
+                self.selected_profile = selection['reference']
+                self.profiles.load(self.selected_profile)
+            elif self.workspace_path.exists() and any(a['kind']=='example' for d in self.load_workspace()['documents'] for a in d['annotations']):
+                self.selected_profile = 'examples'
+            elif self.profile_path.exists():
+                self.selected_profile = 'legacy'
+            else:
+                self.selected_profile = 'bundled:bank-austria:1'
+        except (OSError, ValueError, KeyError, TypeError):
+            raise DirectoryError('saved_state_unreadable') from None
 
     def persist_profile_selection(self, reference):
         self.profiles.load(reference)
@@ -236,7 +258,7 @@ class Review:
         if len(data) > MAX_BODY:
             raise ValueError("workspace_too_large")
         self.state_directory.mkdir(mode=0o700,parents=True,exist_ok=True)
-        fd,name = tempfile.mkstemp(prefix=".fields-",dir=self.state_directory)
+        fd,name = private_temporary(self.state_directory, ".fields-")
         temporary = Path(name)
         try:
             with os.fdopen(fd,"wb") as stream:
@@ -404,7 +426,7 @@ class Review:
         if len(data) > MAX_BODY:
             raise ValueError("plan_too_large")
         self.state_directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-        fd, name = tempfile.mkstemp(prefix=".plan-", dir=self.state_directory)
+        fd, name = private_temporary(self.state_directory, ".plan-")
         temporary = Path(name)
         try:
             with os.fdopen(fd, "wb") as stream:
@@ -417,6 +439,9 @@ class Review:
 
 class DirectoryError(ValueError):
     """Fixed error codes only; never expose filesystem exception messages."""
+    def __init__(self, code, filename=None):
+        super().__init__(code)
+        self.filename = filename
 
 
 def choose_directory():
@@ -473,18 +498,19 @@ def open_directory(value, state_directory):
     except FileNotFoundError:
         raise DirectoryError("directory_not_found") from None
     except ValueError as error:
-        code="no_pdfs" if str(error)=="no_documents" else "directory_unreadable"
+        code="no_pdfs" if str(error)=="no_documents" else "folder_open_failed"
         raise DirectoryError(code) from None
     except Exception:
-        raise DirectoryError("directory_unreadable") from None
+        raise DirectoryError("folder_open_failed") from None
 
 
 class ReviewSession:
     """Each opened folder has its own URLs, review and in-memory proof index."""
-    def __init__(self,review,token,state_directory=None):
+    def __init__(self,review,token,state_directory=None,output_directory=None):
         self.review=review
         self.state_directory=getattr(review,"state_directory",None) if review is not None else Path(state_directory).resolve()
         self.prefix=f"/{token}/"
+        self.output_directory=output_directory
         self.proof_service=None
         self.proof_lock=threading.Lock()
 
@@ -492,7 +518,7 @@ class ReviewSession:
         with self.proof_lock:
             if self.proof_service is None:
                 from .proof import ProofService
-                self.proof_service=ProofService(self.review)
+                self.proof_service=ProofService(self.review, **({"output_directory": self.output_directory} if self.output_directory is not None else {}))
         return self.proof_service
 
     def source(self):
@@ -502,17 +528,17 @@ class ReviewSession:
                 "page_count":sum(d["page_count"] for d in self.review.documents)}
 
 
-def make_server(review: Review | None, port=0, token=None,restored_reviews=None,state_directory=None):
+def make_server(review: Review | None, port=0, token=None,restored_reviews=None,state_directory=None, directory_picker=None, output_directory=None):
     token = token or secrets.token_urlsafe(32)
     if not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",token):
         raise ValueError("invalid_session_token")
     prefix = f"/{token}/"
-    sessions={token:ReviewSession(review,token,state_directory)}
+    sessions={token:ReviewSession(review,token,state_directory,output_directory)}
     # A local restart can retain open folder URLs without exposing their paths.
     for restored_token,restored_review in (restored_reviews or {}).items():
         if restored_token==token or not re.fullmatch(r"[A-Za-z0-9_-]{32,100}",restored_token):
             raise ValueError("invalid_session_token")
-        sessions[restored_token]=ReviewSession(restored_review,restored_token)
+        sessions[restored_token]=ReviewSession(restored_review,restored_token,output_directory=output_directory)
     sessions_lock=threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
@@ -635,7 +661,7 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                     try:
                         if not isinstance(payload,dict):
                             raise DirectoryError("invalid_directory")
-                        directory=choose_directory()
+                        directory=(directory_picker or choose_directory)()
                         if directory is None:
                             return self.json_response(200,{"cancelled":True})
                         return self.json_response(200,{"directory":directory,"cancelled":False})
@@ -650,14 +676,14 @@ def make_server(review: Review | None, port=0, token=None,restored_reviews=None,
                                 raise DirectoryError("too_many_directories")
                         opened=open_directory(payload.get("directory"),session.state_directory)
                         opened_token=secrets.token_urlsafe(32)
-                        opened_session=ReviewSession(opened,opened_token)
+                        opened_session=ReviewSession(opened,opened_token,output_directory=output_directory)
                         with sessions_lock:
                             if len(sessions)>=64:
                                 raise DirectoryError("too_many_directories")
                             sessions[opened_token]=opened_session
                         return self.json_response(200,{**opened_session.source(),"session_path":opened_session.prefix})
                     except DirectoryError as error:
-                        return self.json_response(400,{"error":str(error)})
+                        return self.json_response(400,{"error":str(error),**({'filename':error.filename} if error.filename is not None else {})})
                 if review is None:
                     return self.json_response(409,{"error":"no_directory"})
                 if self.path == prefix+"api/profile/select":

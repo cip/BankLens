@@ -1,4 +1,5 @@
 """Synthetic-only tests of search, multi-page grouping and burned-in masking."""
+from permissions import assert_private
 import io
 import http.client
 import json
@@ -292,7 +293,7 @@ class ProofTests(unittest.TestCase):
             self.assertTrue(page.images)
             self.assertIn(self.original.name,page.extract_text())
             self.assertNotIn(str(self.source),page.extract_text())
-        self.assertEqual(target.stat().st_mode&0o777,0o600)
+        assert_private(self, target)
 
     def test_combined_pdf_deduplicates_pages_and_preserves_source_order(self):
         second=self.source/"Zweiter Auszug Ärzte.pdf"

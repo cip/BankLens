@@ -18,6 +18,8 @@ import warnings
 
 from pypdf import PdfReader
 
+from .private_files import create_private
+
 
 @contextlib.contextmanager
 def quiet_parser():
@@ -60,13 +62,21 @@ def inspect_pdf(path: Path, document_id: str) -> dict:
         return {**base, "status": "unreadable"}
 
 
+def is_appledouble(path: Path) -> bool:
+    """Identify macOS metadata sidecars without excluding real PDFs by name."""
+    if not path.name.startswith('._'):
+        return False
+    with path.open('rb') as stream:
+        return stream.read(4) == b'\x00\x05\x16\x07'
+
+
 def inspect_directory(directory: Path) -> dict:
     if not directory.is_dir():
         raise ValueError("invalid_input_directory")
     # Do not follow file symlinks or recurse into unrelated folders.
     paths = sorted(
         (p for p in directory.iterdir()
-         if p.suffix.lower() == ".pdf" and not p.is_symlink() and p.is_file()),
+         if p.suffix.lower() == ".pdf" and not p.is_symlink() and p.is_file() and not is_appledouble(p)),
         key=lambda p: p.name,
     )
     documents = [
@@ -104,7 +114,7 @@ def write_report(report_path: Path, input_directory: Path, report: dict) -> None
     target.parent.mkdir(parents=True, exist_ok=True)
     # Exclusive creation prevents overwriting any existing file. Remove a
     # partially written report if serialization/write fails.
-    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    fd = create_private(target)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as output:
             output.write(payload)

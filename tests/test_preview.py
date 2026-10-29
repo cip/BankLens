@@ -1,3 +1,4 @@
+from permissions import assert_private
 import contextlib
 import http.client
 import io
@@ -65,7 +66,7 @@ class PreviewTests(unittest.TestCase):
         self.assertNotIn(SECRET, json.dumps(loaded))
         self.assertEqual(loaded["documents"][0]["regions"], plan["documents"][0]["regions"])
         self.assertFalse(loaded["anonymization_performed"])
-        self.assertEqual(self.review.plan_path.stat().st_mode & 0o777, 0o600)
+        assert_private(self, self.review.plan_path)
 
     def test_plan_rejects_bad_coordinates_pages_and_source_bindings(self):
         for bad in ([0, 0, float("nan"), .1], [0, 0, -1, .1], [.9, 0, .2, .1], [True, 0, .2, .1]):
@@ -113,8 +114,8 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(self.review.load_workspace(),self.review.validate_workspace(workspace))
         self.assertNotIn(SECRET,self.review.workspace_path.read_text())
         self.assertNotIn(SECRET,json.dumps(self.review.load_profile()))
-        self.assertEqual(self.review.workspace_path.stat().st_mode & 0o777,0o600)
-        self.assertEqual((self.review.state_directory/"profiles"/self.review.selected_profile.split(":")[1]/"1.json").stat().st_mode & 0o777,0o600)
+        assert_private(self, self.review.workspace_path)
+        assert_private(self, self.review.state_directory/"profiles"/self.review.selected_profile.split(":")[1]/"1.json")
         self.assertEqual(self.review.load_profile()["engine"],"layout-examples-v2")
 
     def test_legacy_character_ids_and_owner_and_continuation_metadata_survive(self):

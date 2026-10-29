@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from reportlab.pdfgen import canvas
+from permissions import assert_private
 
 from banklens_pdf.preview import Review, make_server
 from banklens_pdf.proof import proof_profile_context
@@ -100,7 +101,7 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual((BUNDLED/'bank-austria.json').read_bytes(),bundled_bytes)
         for path in (self.root/'state/profiles').rglob('*.json'):
             self.assertNotIn('SYNTHETIC_OWNER_SENTINEL',path.read_text())
-            self.assertEqual(path.stat().st_mode & 0o777,0o600)
+            assert_private(self, path)
 
     def test_legacy_profile_is_preserved_and_explicit_choice_beats_examples(self):
         legacy=self.review.learn(self.workspace('Legacy synthetic'))

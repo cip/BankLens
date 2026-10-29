@@ -6,6 +6,18 @@
   const button=document.getElementById('source-load');
   const picker=document.getElementById('source-pick');
   const status=document.getElementById('source-status');
+  const errorFile=document.createElement('div');
+  const errorFileLabel=document.createElement('label');
+  const errorFileInput=document.createElement('input');
+  errorFile.hidden=true;
+  errorFileLabel.htmlFor='source-error-filename';
+  errorFileLabel.textContent='Betroffene Datei (anklicken und kopieren)';
+  errorFileInput.id='source-error-filename';
+  errorFileInput.type='text';
+  errorFileInput.readOnly=true;
+  errorFileInput.addEventListener('click',()=>errorFileInput.select());
+  errorFile.append(errorFileLabel,errorFileInput);
+  status.after(errorFile);
   const errors={
     invalid_directory:'Bitte einen Ordnerpfad eingeben.',
     absolute_directory_required:'Bitte den vollständigen Ordnerpfad eingeben, zum Beispiel /Users/…/Kontoauszüge. Auch ~/… funktioniert.',
@@ -14,6 +26,12 @@
     directory_contains_state:'Bitte einen eigenen Eingabeordner außerhalb des BankLens-Arbeitsstands wählen.',
     no_pdfs:'In diesem Ordner liegen keine PDF-Dateien. Unterordner werden nicht durchsucht.',
     directory_unreadable:'Der Ordner oder eine PDF-Datei konnte nicht geöffnet werden. Bitte Zugriffsrechte und PDFs prüfen.',
+    pdf_password:'Mindestens eine PDF benötigt ein Passwort und kann hier nicht geöffnet werden.',
+    pdf_invalid:'Mindestens eine PDF ist beschädigt oder hat ein nicht unterstütztes Format.',
+    pdf_security:'Mindestens eine PDF verwendet einen nicht unterstützten Sicherheitsschutz.',
+    pdf_unreadable:'Mindestens eine PDF konnte nicht gelesen werden. Bitte Zugriffsrechte prüfen.',
+    saved_state_unreadable:'Der gespeicherte Arbeitsstand oder das gewählte Profil konnte nicht geladen werden. Bitte den Arbeitsstand nicht löschen und Unterstützung anfordern.',
+    folder_open_failed:'Der Ordner konnte wegen eines unerwarteten Fehlers nicht geladen werden. Bitte Unterstützung anfordern.',
     too_many_directories:'Für diese Serversitzung sind bereits viele Ordner geöffnet. Bitte das Toolkit neu starten.',
     directory_picker_unavailable:'Der native Ordnerdialog ist nicht verfügbar. Du kannst den Pfad oben eingeben.',
     directory_picker_failed:'Der Ordnerdialog konnte nicht geöffnet werden.',
@@ -23,6 +41,8 @@
   function show(text,error=false){
     status.textContent=text;
     status.classList.toggle('error',error);
+    errorFile.hidden=true;
+    errorFileInput.value='';
   }
 
   function setBusy(busy){
@@ -42,9 +62,15 @@
     });
     try{
       const response=await fetch(route,options),result=await response.json();
-      if(!response.ok)throw new Error(result.error);
+      if(!response.ok){const error=new Error(result.error);if(typeof result.filename==='string')error.filename=result.filename;throw error;}
       return result;
     }finally{clearTimeout(timer);}
+  }
+
+  function showError(error){
+    const message=errors[error.message]||'Der lokale Ordner konnte nicht geladen werden. Bitte Verbindung und Toolkit prüfen.';
+    show(message,true);
+    if(error.filename){errorFileInput.value=error.filename;errorFile.hidden=false;}
   }
 
   async function openSession(directory){
@@ -65,7 +91,7 @@
     setBusy(true);
     show('PDF-Dateien im Ordner werden lokal geladen …');
     try{await openSession(directory);}
-    catch(error){show(errors[error.message]||'Der lokale Ordner konnte nicht geladen werden. Bitte Verbindung und Toolkit prüfen.',true);}
+    catch(error){showError(error);}
     finally{setBusy(false);}
   }
 
@@ -85,7 +111,7 @@
       show('PDF-Dateien im ausgewählten Ordner werden lokal geladen …');
       await openSession(result.directory);
     }catch(error){
-      show(errors[error.message]||'Der lokale Ordner konnte nicht geladen werden. Bitte Verbindung und Toolkit prüfen.',true);
+      showError(error);
     }finally{setBusy(false);}
   });
 
