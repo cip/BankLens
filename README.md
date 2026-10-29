@@ -158,6 +158,9 @@ BankLens steht unter [GPL-3.0-only](LICENSE). Informationen zu Copyright und zus
 
 Der Windows-Installer wird im CI-Lauf als Artefakt gebaut; er ist noch nicht als
 verifiziertes Release freigegeben. Er benötigt die Microsoft WebView2 Runtime.
+Der Installer enthält die BankLens-Lizenz; die Prüfung der Lizenzen und
+Verteilungspflichten gebündelter Drittkomponenten ist noch nicht abgeschlossen.
+Den aktuellen Stand beschreibt die [Windows-Lizenzprüfung](docs/windows-lizenzpruefung.md).
 Die Installation erfolgt pro Benutzer unter `%LOCALAPPDATA%\Programs\BankLens`.
 Arbeitsstände und erzeugte Kopien liegen unter `%LOCALAPPDATA%\BankLens\state`;
 Kopien befinden sich dort im Unterordner `exports`. Die Daten bleiben bei der

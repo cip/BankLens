@@ -4,6 +4,8 @@ python -m pip install -r packaging/windows/requirements.txt
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 python -m PyInstaller --noconfirm --clean --windowed --onedir --name BankLens --paths . --add-data 'banklens_pdf/web;banklens_pdf/web' --add-data 'banklens_pdf/profiles;banklens_pdf/profiles' --collect-all pypdfium2 --collect-data reportlab packaging/windows/desktop_entry.py
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
+Copy-Item LICENSE 'dist/BankLens/LICENSE.txt'
+Copy-Item COPYRIGHT.md 'dist/BankLens/COPYRIGHT.md'
 $sourceProfile = 'banklens_pdf/profiles/bank-austria.json'
 $bundledProfile = 'dist/BankLens/_internal/banklens_pdf/profiles/bank-austria.json'
 if (!(Test-Path $bundledProfile) -or (Get-FileHash $sourceProfile).Hash -ne (Get-FileHash $bundledProfile).Hash) {

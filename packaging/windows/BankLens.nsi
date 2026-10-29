@@ -26,6 +26,8 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\BankLens"
   RMDir /r "$INSTDIR\_internal"
   Delete "$INSTDIR\BankLens.exe"
+  Delete "$INSTDIR\LICENSE.txt"
+  Delete "$INSTDIR\COPYRIGHT.md"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
 SectionEnd
