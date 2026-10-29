@@ -1,4 +1,5 @@
 Unicode True
+SetCompressor zlib
 Name "BankLens"
 OutFile "BankLens-Setup.exe"
 InstallDir "$LOCALAPPDATA\Programs\BankLens"
@@ -28,6 +29,10 @@ Section "Uninstall"
   Delete "$INSTDIR\BankLens.exe"
   Delete "$INSTDIR\LICENSE.txt"
   Delete "$INSTDIR\COPYRIGHT.md"
+  Delete "$INSTDIR\Quellcode-Commit.txt"
+  Delete "$INSTDIR\BankLens-Quellcode.zip"
+  Delete "$INSTDIR\Paketinhalt.json"
+  RMDir /r "$INSTDIR\Lizenzen"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
 SectionEnd
