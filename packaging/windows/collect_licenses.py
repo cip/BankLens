@@ -13,7 +13,7 @@ PACKAGES = {
     'typing_extensions': '4.16.0', 'clr_loader': '0.3.1', 'cffi': '2.1.1',
     'pycparser': '3.12', 'altgraph': '0.17.5', 'PyInstaller': '6.11.1',
     'pyinstaller-hooks-contrib': '2026.9', 'packaging': '26.3',
-    'pefile': '2023.2.7', 'pywin32-ctypes': '0.2.3', 'setuptools': '80.10.2',
+    'pefile': '2023.2.7', 'pywin32-ctypes': '0.2.3', 'setuptools': '65.5.0',
 }
 WEBVIEW_DLLS = {
     'Microsoft.Web.WebView2.Core.dll': 'cb8c852fcc4ef55d630b64d171dc11538bb25258041ed22cf31735982a2e09e3',
