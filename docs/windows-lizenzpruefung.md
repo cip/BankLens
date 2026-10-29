@@ -28,6 +28,11 @@ Quellcode-Commit sind für jede Verteilung erneut zu prüfen.
   CI verwendet NSIS 3.13.0. PyInstaller 6.11.1 hat eine
   [Ausnahme für erzeugte Programme](https://pyinstaller.org/en/v6.11.1/license.html).
   Das Skript verwendet keine NSIS-Plugins und legt zlib als Kompression fest.
+- Im untersuchten CI-Paket `91a1f9e` wurden Windows-Systemlaufzeitdateien aus
+  einer auf dem Runner vorhandenen Java-Installation übernommen. Dieser
+  unbeabsichtigte Ursprung ist für eine Verteilung nicht belegt. Der Build
+  entfernt Java-Verzeichnisse aus dem Suchpfad und bricht ab, falls die
+  betreffenden Systemlaufzeitdateien weiterhin ins Paket gelangen.
 - Die in pywebview 5.4 enthaltenen WebView2-SDK-DLLs entsprechen bytegenau dem
   Microsoft-SDK 1.0.2957.106; ihr Lizenztext liegt bei und die SHA-256-Werte
   werden im Build geprüft. Die separat installierte WebView2-Runtime wird nicht
