@@ -6,6 +6,18 @@
   const button=document.getElementById('source-load');
   const picker=document.getElementById('source-pick');
   const status=document.getElementById('source-status');
+  const errorFile=document.createElement('div');
+  const errorFileLabel=document.createElement('label');
+  const errorFileInput=document.createElement('input');
+  errorFile.hidden=true;
+  errorFileLabel.htmlFor='source-error-filename';
+  errorFileLabel.textContent='Betroffene Datei (anklicken und kopieren)';
+  errorFileInput.id='source-error-filename';
+  errorFileInput.type='text';
+  errorFileInput.readOnly=true;
+  errorFileInput.addEventListener('click',()=>errorFileInput.select());
+  errorFile.append(errorFileLabel,errorFileInput);
+  status.after(errorFile);
   const errors={
     invalid_directory:'Bitte einen Ordnerpfad eingeben.',
     absolute_directory_required:'Bitte den vollständigen Ordnerpfad eingeben, zum Beispiel /Users/…/Kontoauszüge. Auch ~/… funktioniert.',
@@ -29,6 +41,8 @@
   function show(text,error=false){
     status.textContent=text;
     status.classList.toggle('error',error);
+    errorFile.hidden=true;
+    errorFileInput.value='';
   }
 
   function setBusy(busy){
@@ -55,7 +69,8 @@
 
   function showError(error){
     const message=errors[error.message]||'Der lokale Ordner konnte nicht geladen werden. Bitte Verbindung und Toolkit prüfen.';
-    show(message+(error.filename?` Betroffene Datei: ${error.filename}`:''),true);
+    show(message,true);
+    if(error.filename){errorFileInput.value=error.filename;errorFile.hidden=false;}
   }
 
   async function openSession(directory){

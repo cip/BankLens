@@ -39,6 +39,7 @@ class DesktopTests(unittest.TestCase):
             window = Window()
             def create_window(self, title, url, **kwargs):
                 self.url = url
+                self.window_options = kwargs
                 return self.window
             def start(self, **kwargs):
                 self.options = kwargs
@@ -56,6 +57,7 @@ class DesktopTests(unittest.TestCase):
             self.assertIsNone(captured['directory_picker']())
         self.assertEqual(captured['output_directory'], captured['state_directory'] / 'exports')
         self.assertEqual(view.options['gui'], 'edgechromium')
+        self.assertTrue(view.window_options['text_select'])
         self.assertFalse(view.settings['ALLOW_FILE_URLS'])
 
 

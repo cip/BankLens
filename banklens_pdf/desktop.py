@@ -34,7 +34,8 @@ def run(webview):
     try:
         webview.settings["ALLOW_DOWNLOADS"] = True
         webview.settings["ALLOW_FILE_URLS"] = False
-        window = webview.create_window("BankLens", url, width=1200, height=800, min_size=(800, 600))
+        window = webview.create_window("BankLens", url, width=1200, height=800,
+                                       min_size=(800, 600), text_select=True)
         webview.start(gui="edgechromium", private_mode=True)
     finally:
         server.shutdown()
