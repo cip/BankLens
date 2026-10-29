@@ -63,8 +63,12 @@ Quellcode und die erforderlichen Rechte und Hinweise zugänglich machen.
 Der geprüfte Lauf `350bae8` enthält `VCRUNTIME140.dll` aus der Python-3.11.9-
 Installation; der Build vergleicht die Datei mit derjenigen der verwendeten
 Python-Installation. Die [Microsoft-Verteilungshinweise](https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files)
-knüpfen die Weitergabe an Lizenzbedingungen. Ob die Voraussetzungen für den
-konkreten Veröffentlichungsweg erfüllt sind, ist noch gesondert zu klären.
+knüpfen die Weitergabe an Lizenzbedingungen. Der [CPython-Hinweis](https://github.com/python/cpython/blob/v3.11.9/PC/crtlicense.txt)
+für den Windows-Build enthält zusätzliche Bedingungen für die Weitergabe von
+Microsoft Distributable Code und liegt dem Installer ebenfalls bei. Ob und wie
+die konkreten Anforderungen mit GPL-3.0 und dem geplanten Vertriebsweg erfüllt
+werden können, ist vor Veröffentlichung rechtlich zu klären; die Beilage des
+Hinweises allein stellt das nicht sicher.
 
 Die Impressums- und Informationspflichten hängen zusätzlich von Sitz und
 konkretem Vertriebsmodell ab; ein GitHub-Link ersetzt diese Prüfung nicht.

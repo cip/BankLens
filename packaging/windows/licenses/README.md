@@ -4,6 +4,8 @@ Diese Dateien ergänzen die bei jedem Build aus den installierten Paketen
 gesammelten Lizenztexte. Sie stammen aus folgenden versionsgebundenen Quellen:
 
 - `python-3.11.9.txt`: [CPython 3.11.9](https://github.com/python/cpython/blob/v3.11.9/LICENSE).
+- `python-3.11.9-weitere-lizenzen.rst`: [Lizenzdokumentation von CPython 3.11.9](https://github.com/python/cpython/blob/v3.11.9/Doc/license.rst).
+- `python-3.11.9-microsoft-crt.txt`: [Hinweis zu Microsoft Distributable Code von CPython 3.11.9](https://github.com/python/cpython/blob/v3.11.9/PC/crtlicense.txt).
 - `pillow-dependencies/`: [Pillow 12.3.0, wheels/dependency_licenses](https://github.com/python-pillow/Pillow/tree/12.3.0/wheels/dependency_licenses).
   Die Sammlung ist vorsorglich breiter als die tatsächlich im Paket verwendeten
   Bibliotheken. Pillow liefert zusätzlich eine SBOM in den Paketmetadaten.
