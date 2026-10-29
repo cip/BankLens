@@ -13,6 +13,12 @@ spec.loader.exec_module(collection)
 
 
 class LicenseCollectionTests(unittest.TestCase):
+    def test_pdfium_notice_is_detected_for_windows_and_posix_paths(self):
+        path = 'pypdfium2-5.14.0.dist-info/licenses/data/windows_x64/BUILD_LICENSES/pdfium.txt'
+        self.assertTrue(collection.is_notice_path('pypdfium2', path))
+        self.assertTrue(collection.is_notice_path('pypdfium2', path.replace('/', '\\')))
+        self.assertFalse(collection.is_notice_path('packaging', 'packaging/licenses/_spdx.py'))
+
     def test_collects_notices_and_rejects_unexpected_versions(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

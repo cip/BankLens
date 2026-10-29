@@ -28,6 +28,16 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def is_notice_path(name, path):
+    lowered = str(path).replace('\\', '/').lower()
+    basename = lowered.rsplit('/', 1)[-1]
+    return (basename.startswith(('license', 'copying', 'notice'))
+            or ('.dist-info/' in lowered and '/licenses/' in lowered)
+            or (name == 'reportlab' and lowered.startswith('reportlab/fonts/')
+                and basename.endswith('.txt'))
+            or basename.endswith('.cdx.json'))
+
+
 def collect(destination, pip_report=None):
     if sys.version_info[:3] != (3, 11, 9):
         raise RuntimeError('Windows build requires Python 3.11.9')
@@ -44,14 +54,7 @@ def collect(destination, pip_report=None):
             relative = Path(str(item))
             if relative.is_absolute() or '..' in relative.parts:
                 continue
-            lowered = str(relative).lower()
-            basename = relative.name.lower()
-            is_notice = (basename.startswith(('license', 'copying', 'notice'))
-                         or ('.dist-info/' in lowered and '/licenses/' in lowered)
-                         or (name == 'reportlab' and lowered.startswith('reportlab/fonts/')
-                             and basename.endswith('.txt'))
-                         or basename.endswith('.cdx.json'))
-            if not is_notice:
+            if not is_notice_path(name, relative):
                 continue
             source = Path(dist.locate_file(item))
             if source.is_file():
