@@ -34,8 +34,14 @@ Quellcode-Commit sind für jede Verteilung erneut zu prüfen.
   entfernt Java-Verzeichnisse aus dem Suchpfad und schließt diese Windows-
   Systemlaufzeitdateien aus dem Paket aus. Das nicht für Windows benötigte
   `pywebview-android.jar` wird entfernt; der Build prüft anschließend, dass
-  keine Java-Laufzeit oder JAR-Dateien eingebunden sind. Das Paket setzt die Systemlaufzeit eines
-  aktuellen Windows voraus; der Windows-CI-Selbsttest prüft den Start dort.
+  keine Java-Laufzeit oder JAR-Dateien eingebunden sind. Das Paket setzt die
+  Microsoft Visual C++ 2015–2022 Runtime (x64) als Systemvoraussetzung voraus.
+  Der Installer prüft den offiziellen Registry-Eintrag und bietet bei fehlender
+  Runtime den Download von Microsoft an; danach muss der Nutzer BankLens-Setup
+  erneut starten. Die Runtime-DLLs werden nicht mitgeliefert. Build und CI
+  prüfen, dass keine `VCRUNTIME*.dll` im App-Paket enthalten ist. Der
+  Windows-CI-Selbsttest läuft auf einem Runner mit installierter Runtime; das
+  Fehlen der Runtime auf einem sauberen Windows-System wird nicht simuliert.
 - Der nicht benötigte Testfont `reportlab/fonts/hb-test.ttf` wird aus dem
   Paket entfernt. Die verwendbaren Vera-Schriften und ihre Lizenzdatei bleiben
   erhalten.
@@ -60,15 +66,16 @@ Verteilungspflichten für jeden Vertriebsweg. Der gewählte Vertriebsweg muss de
 zum tatsächlich verteilten Binärstand passenden vollständigen entsprechenden
 Quellcode und die erforderlichen Rechte und Hinweise zugänglich machen.
 
-Der geprüfte Lauf `350bae8` enthält `VCRUNTIME140.dll` aus der Python-3.11.9-
-Installation; der Build vergleicht die Datei mit derjenigen der verwendeten
-Python-Installation. Die [Microsoft-Verteilungshinweise](https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files)
-knüpfen die Weitergabe an Lizenzbedingungen. Der [CPython-Hinweis](https://github.com/python/cpython/blob/v3.11.9/PC/crtlicense.txt)
-für den Windows-Build enthält zusätzliche Bedingungen für die Weitergabe von
-Microsoft Distributable Code und liegt dem Installer ebenfalls bei. Ob und wie
-die konkreten Anforderungen mit GPL-3.0 und dem geplanten Vertriebsweg erfüllt
-werden können, ist vor Veröffentlichung rechtlich zu klären; die Beilage des
-Hinweises allein stellt das nicht sicher.
+Frühere geprüfte Pakete enthielten `VCRUNTIME140.dll` aus der Python-3.11.9-
+Installation. Der aktuelle Build entfernt verbliebene `VCRUNTIME*.dll` und
+weist deren Anwesenheit zurück. Das vermeidet die direkte Mitlieferung dieser
+Runtime-Dateien durch BankLens. Im Paket enthaltene CPython-Binärdateien
+können weiterhin Microsoft Distributable Code enthalten; der
+[CPython-Hinweis](https://github.com/python/cpython/blob/v3.11.9/PC/crtlicense.txt)
+liegt daher bei und Microsoft-Bedingungen für diese Bestandteile sind vor
+öffentlicher Verteilung weiterhin zu prüfen. Die
+[Microsoft-Verteilungshinweise](https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files)
+beschreiben die Runtime-Voraussetzung und deren Installation.
 
 Die Impressums- und Informationspflichten hängen zusätzlich von Sitz und
 konkretem Vertriebsmodell ab; ein GitHub-Link ersetzt diese Prüfung nicht.
