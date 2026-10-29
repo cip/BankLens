@@ -32,8 +32,9 @@ Quellcode-Commit sind für jede Verteilung erneut zu prüfen.
   einer auf dem Runner vorhandenen Java-Installation übernommen. Dieser
   unbeabsichtigte Ursprung ist für eine Verteilung nicht belegt. Der Build
   entfernt Java-Verzeichnisse aus dem Suchpfad und schließt diese Windows-
-  Systemlaufzeitdateien aus dem Paket aus. Er prüft, dass keine Java-Laufzeit
-  oder JAR-Dateien eingebunden sind. Das Paket setzt die Systemlaufzeit eines
+  Systemlaufzeitdateien aus dem Paket aus. Das nicht für Windows benötigte
+  `pywebview-android.jar` wird entfernt; der Build prüft anschließend, dass
+  keine Java-Laufzeit oder JAR-Dateien eingebunden sind. Das Paket setzt die Systemlaufzeit eines
   aktuellen Windows voraus; der Windows-CI-Selbsttest prüft den Start dort.
 - Die in pywebview 5.4 enthaltenen WebView2-SDK-DLLs entsprechen bytegenau dem
   Microsoft-SDK 1.0.2957.106; ihr Lizenztext liegt bei und die SHA-256-Werte
