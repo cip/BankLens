@@ -10,6 +10,7 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import patch
+from pypdf import PdfReader, PdfWriter
 
 from banklens_pdf.preview import DirectoryError, Review, ReviewSession, make_server, open_directory
 from test_proof import artificial_pdf
@@ -87,11 +88,31 @@ assert review.documents[0]['page_count'] == 3
         (broken/"PRIVATE_NAME.pdf").write_bytes(b"PRIVATE_PDF_SENTINEL")
         cases=[(None,"invalid_directory"),("","invalid_directory"),("relative/path","absolute_directory_required"),
                (str(self.root/"PRIVATE_MISSING"),"directory_not_found"),(str(self.source/"input.pdf"),"not_a_directory"),
-               (str(empty),"no_pdfs"),(str(broken),"directory_unreadable"),(str(self.root),"directory_contains_state")]
+               (str(empty),"no_pdfs"),(str(broken),"pdf_invalid"),(str(self.root),"directory_contains_state")]
         for path,expected in cases:
             with self.subTest(expected=expected),self.assertRaises(DirectoryError) as caught:
                 open_directory(path,self.state)
             self.assertEqual(str(caught.exception),expected)
+
+    def test_password_protected_pdf_has_fixed_diagnostic(self):
+        encrypted = self.root / 'encrypted'
+        encrypted.mkdir()
+        writer = PdfWriter()
+        writer.append(PdfReader(self.source / 'input.pdf'))
+        writer.encrypt('synthetic-password')
+        with (encrypted / 'PRIVATE_NAME.pdf').open('wb') as stream:
+            writer.write(stream)
+        with self.assertRaises(DirectoryError) as caught:
+            open_directory(str(encrypted), self.state)
+        self.assertEqual(str(caught.exception), 'pdf_password')
+
+    def test_invalid_saved_selection_has_fixed_diagnostic(self):
+        review = Review(self.source, self.state)
+        self.state.mkdir()
+        review.selection_path.write_text('{"schema_version":1,"reference":"PRIVATE_SENTINEL"}')
+        with self.assertRaises(DirectoryError) as caught:
+            open_directory(str(self.source), self.state)
+        self.assertEqual(str(caught.exception), 'saved_state_unreadable')
 
     def test_empty_start_opens_a_separate_folder_session(self):
         server,url=make_server(None,state_directory=self.state)

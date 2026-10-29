@@ -88,9 +88,18 @@ class Review:
             raise ValueError("no_documents")
         for index, path in enumerate(paths, start=1):
             document_id = f"document-{index:03d}"
-            fingerprint = digest_file(path)
-            with quiet_renderer(), pdfium.PdfDocument(str(path)) as document:
-                page_count = len(document)
+            try:
+                fingerprint = digest_file(path)
+                with quiet_renderer(), pdfium.PdfDocument(str(path)) as document:
+                    page_count = len(document)
+            except pdfium.PdfiumError as error:
+                code = {pdfium.raw.FPDF_ERR_PASSWORD: 'pdf_password',
+                        pdfium.raw.FPDF_ERR_FORMAT: 'pdf_invalid',
+                        pdfium.raw.FPDF_ERR_FILE: 'pdf_unreadable',
+                        pdfium.raw.FPDF_ERR_SECURITY: 'pdf_security'}.get(error.err_code, 'pdf_unreadable')
+                raise DirectoryError(code) from None
+            except OSError:
+                raise DirectoryError('pdf_unreadable') from None
             self.paths[document_id] = path
             self.documents.append({"document_id": document_id,
                                    "source_sha256": fingerprint,
@@ -101,18 +110,21 @@ class Review:
         self.selection_path = state_directory / f"profile-selection-{set_key}.json"
         self.profiles = ProfileStore(self)
         self.selected_profile = 'examples'
-        if self.selection_path.exists():
-            selection = read_json(self.selection_path)
-            if selection.get('schema_version') != 1:
-                raise ValueError('invalid_profile_selection')
-            self.selected_profile = selection['reference']
-            self.profiles.load(self.selected_profile)
-        elif self.workspace_path.exists() and any(a['kind']=='example' for d in self.load_workspace()['documents'] for a in d['annotations']):
-            self.selected_profile = 'examples'
-        elif self.profile_path.exists():
-            self.selected_profile = 'legacy'
-        else:
-            self.selected_profile = 'bundled:bank-austria:1'
+        try:
+            if self.selection_path.exists():
+                selection = read_json(self.selection_path)
+                if selection.get('schema_version') != 1:
+                    raise ValueError('invalid_profile_selection')
+                self.selected_profile = selection['reference']
+                self.profiles.load(self.selected_profile)
+            elif self.workspace_path.exists() and any(a['kind']=='example' for d in self.load_workspace()['documents'] for a in d['annotations']):
+                self.selected_profile = 'examples'
+            elif self.profile_path.exists():
+                self.selected_profile = 'legacy'
+            else:
+                self.selected_profile = 'bundled:bank-austria:1'
+        except (OSError, ValueError, KeyError, TypeError):
+            raise DirectoryError('saved_state_unreadable') from None
 
     def persist_profile_selection(self, reference):
         self.profiles.load(reference)
@@ -483,10 +495,10 @@ def open_directory(value, state_directory):
     except FileNotFoundError:
         raise DirectoryError("directory_not_found") from None
     except ValueError as error:
-        code="no_pdfs" if str(error)=="no_documents" else "directory_unreadable"
+        code="no_pdfs" if str(error)=="no_documents" else "folder_open_failed"
         raise DirectoryError(code) from None
     except Exception:
-        raise DirectoryError("directory_unreadable") from None
+        raise DirectoryError("folder_open_failed") from None
 
 
 class ReviewSession:
