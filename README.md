@@ -157,7 +157,8 @@ BankLens steht unter [GPL-3.0-only](LICENSE). Informationen zu Copyright und zus
 ### Windows-Desktop (in Entwicklung)
 
 Der Windows-Installer wird im CI-Lauf als Artefakt gebaut; er ist noch nicht als
-verifiziertes Release freigegeben. Er benötigt die Microsoft WebView2 Runtime.
+verifiziertes Release freigegeben. Er benötigt Windows 10 oder neuer und die
+Microsoft WebView2 Runtime.
 Der Installer enthält die BankLens-Lizenz, Lizenzhinweise der Abhängigkeiten und
 ein Quellcodearchiv zum Build. Die [Windows-Lizenzprüfung](docs/windows-lizenzpruefung.md)
 beschreibt die Nachweise und die noch für die öffentliche Verteilung zu prüfenden Punkte.

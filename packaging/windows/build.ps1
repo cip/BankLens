@@ -7,7 +7,9 @@ $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -notmatch '(?i)java|jdk|
 python -m PyInstaller --noconfirm --clean --windowed --onedir --name BankLens --paths . --add-data 'banklens_pdf/web;banklens_pdf/web' --add-data 'banklens_pdf/profiles;banklens_pdf/profiles' --collect-all pypdfium2 --collect-data reportlab packaging/windows/desktop_entry.py
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $unexpectedRuntime = @(Get-ChildItem 'dist/BankLens/_internal' -File | Where-Object { $_.Name -match '^(?i:api-ms-win-.*|ucrtbase)\.dll$' })
-if ($unexpectedRuntime.Count) { throw "Unerwartete Windows-Systemlaufzeit im Paket: $(($unexpectedRuntime.Name) -join ', ')" }
+if ($unexpectedRuntime.Count) { $unexpectedRuntime | Remove-Item -Force }
+$javaComponents = @(Get-ChildItem 'dist/BankLens' -File -Recurse | Where-Object { $_.Name -match '^(?i:jvm\.dll|java(?:w)?\.exe)$' -or $_.Extension -ieq '.jar' })
+if ($javaComponents.Count) { throw 'Unerwartete Java-Komponente im Paket.' }
 Copy-Item LICENSE 'dist/BankLens/LICENSE.txt'
 Copy-Item COPYRIGHT.md 'dist/BankLens/COPYRIGHT.md'
 python packaging/windows/collect_licenses.py 'dist/BankLens/Lizenzen' $pipReport

@@ -31,8 +31,10 @@ Quellcode-Commit sind für jede Verteilung erneut zu prüfen.
 - Im untersuchten CI-Paket `91a1f9e` wurden Windows-Systemlaufzeitdateien aus
   einer auf dem Runner vorhandenen Java-Installation übernommen. Dieser
   unbeabsichtigte Ursprung ist für eine Verteilung nicht belegt. Der Build
-  entfernt Java-Verzeichnisse aus dem Suchpfad und bricht ab, falls die
-  betreffenden Systemlaufzeitdateien weiterhin ins Paket gelangen.
+  entfernt Java-Verzeichnisse aus dem Suchpfad und schließt diese Windows-
+  Systemlaufzeitdateien aus dem Paket aus. Er prüft, dass keine Java-Laufzeit
+  oder JAR-Dateien eingebunden sind. Das Paket setzt die Systemlaufzeit eines
+  aktuellen Windows voraus; der Windows-CI-Selbsttest prüft den Start dort.
 - Die in pywebview 5.4 enthaltenen WebView2-SDK-DLLs entsprechen bytegenau dem
   Microsoft-SDK 1.0.2957.106; ihr Lizenztext liegt bei und die SHA-256-Werte
   werden im Build geprüft. Die separat installierte WebView2-Runtime wird nicht
